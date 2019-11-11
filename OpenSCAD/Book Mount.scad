@@ -15,7 +15,7 @@ baseDiam = 138;
 baseRad = baseDiam/2;
 
 showClamps = false;
-flatEdges = false;
+flatEdges = true;
 
 module rightArm()
 {
@@ -69,6 +69,6 @@ module clamp() {
     }
 }
 
-rightArm();
-//leftArm();
+//rightArm();
+leftArm();
 // base();
