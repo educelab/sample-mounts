@@ -3,12 +3,13 @@ use <cylinder_outer.scad>
 // fr 1: 28 x 38 mm
 // fr 2: 26 x 40 mm
 
-label = "FR1";
 objW = 28;
 objH = 38;
 objD = 3;
 objBuffer = 3;
-theta = 85;
+theta = 75;
+label1 = "FR1";
+label2 = str(theta);
 
 wallThickness = 0.5;
 
@@ -55,7 +56,8 @@ module trayCavity() {
 difference() {
   cylinder_outer(h=cylH, d=cylD);
   trayCavity();
-  translate([0,-2.5,0.5]) rotate([0,180,0]) linear_extrude(0.5) text(label, 5, halign="center", font="Arial Rounded MT Bold");
+  translate([0,0.5,0.5]) rotate([0,180,0]) linear_extrude(0.5) text(label1, 4, halign="center", font="Arial Rounded MT Bold");
+  translate([0,-4.5,0.5]) rotate([0,180,0]) linear_extrude(0.5) text(label2, 4, halign="center", font="Arial Rounded MT Bold");
 }
 
 
