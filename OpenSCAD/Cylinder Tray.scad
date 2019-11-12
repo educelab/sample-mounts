@@ -3,17 +3,18 @@ use <cylinder_outer.scad>
 // fr 1: 28 x 38 mm
 // fr 2: 26 x 40 mm
 
+label = "FR1";
 objW = 28;
 objH = 38;
 objD = 3;
 objBuffer = 3;
-theta = 45;
+theta = 85;
 
-wallThickness = 1;
+wallThickness = 0.5;
 
 bufferedW = objW + objBuffer;
 bufferedH = objH + objBuffer;
-bufferedD = objD + objBuffer;
+bufferedD = objD + 1.5;
 
 projW = bufferedW;
 projL1 = bufferedH * cos(theta);
@@ -39,12 +40,12 @@ faces = [
         [1, 3, 2]
       ];
 
-cylH = max(bufferedD, projH1);
+cylH = max(bufferedD, projH1) + 2;
 cylD = sqrt(projW * projW + projH * projH) + 2 * wallThickness;
 
 
 module trayCavity() {
-    translate([-projW/2, -projL1/2 + projL2/2, wallThickness]) { 
+    translate([-projW/2, -projL1/2 + projL2/2, 2]) { 
         rotate([theta,0,0]) cube([bufferedW,bufferedH,bufferedD]);
         polyhedron(points = pts, faces = faces);
     }
@@ -54,7 +55,10 @@ module trayCavity() {
 difference() {
   cylinder_outer(h=cylH, d=cylD);
   trayCavity();
+  translate([0,-2.5,0.5]) rotate([0,180,0]) linear_extrude(0.5) text(label, 5, halign="center", font="Arial Rounded MT Bold");
 }
+
+
 
 // translate([-4.75,-3.5,-2]) rotate([26,0,0]) cube([9.5,10.,.1]);
 
