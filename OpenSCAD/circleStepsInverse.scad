@@ -5,8 +5,8 @@ $fa = 1;
 $fs = 0.4;
 
 function overlapForPrinting() = 0.001;
-function heightOfModel() = 50;
-function widthOfModel() = 50;
+function heightOfModel() = 30;
+function widthOfModel() = 30;
 
 //Height and Width functions to choose from
 function inverseHeight(maxHeight, step) = maxHeight/step;
@@ -15,8 +15,8 @@ function logisticHeight(maxHeight, step) = maxHeight / (3+exp(step/3));
 function logisticWidth(maxWidth, step) = maxWidth / (3+exp(step/3)); 
 
 //Assigning the equations used to determine height and width
-function height(maxHeight, step) = logisticHeight(maxHeight, step);
-function width(maxWidth, step) = logisticWidth(maxWidth, step); 
+function height(maxHeight, step) = inverseHeight(maxHeight, step);
+function width(maxWidth, step) = inverseWidth(maxWidth, step); 
 function addHeight(currHeight, addHeight) = currHeight+addHeight;
 
 //Creating a cylinder step
@@ -28,7 +28,7 @@ module eachStep(maxStepsHeight, maxStepsWidth, currStepsHeight, stepNum){
 }
 
 //Recursively stacking the steps
-module stackSteps(maxHeight, maxWidth, currHeight = 0, currStep = 1){
+module stackSteps(maxHeight, maxWidth, currHeight = 0, currStep){
     nextStep = height(maxHeight, currStep);
     if (currHeight+nextStep >= maxHeight) {
         echo("Complete");
@@ -42,4 +42,5 @@ module stackSteps(maxHeight, maxWidth, currHeight = 0, currStep = 1){
 }
 
 //Creating a cylinder stair step pattern
-stackSteps(maxHeight = heightOfModel(), maxWidth = widthOfModel());
+stackSteps(maxHeight = heightOfModel(), maxWidth = widthOfModel(), currStep = 5);
+
