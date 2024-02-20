@@ -1,14 +1,17 @@
 use <cylinder_outer.scad>
-use <Generic Mount Ring.scad>
-use <Generic Mount Disc.scad>
+// use <Generic Mount Ring.scad>
+// use <Generic Mount Disc.scad>
+use <Generic Mount Ring 65mm.scad>
+use <Generic Mount Disc 65mm.scad>
 
 plateW = 300;
 plateD = 12.7;
 
+eps = 0.4;
 holeDist = 25;
-holeDiam = 6.5;
-recessDiam = 15;
-recessDepth = 6;
+holeDiam = 6.5 + eps*2;
+recessDiam = 15 + eps*2;
+recessDepth = 6 + eps;
 cols = 11;
 rows = 11;
 
