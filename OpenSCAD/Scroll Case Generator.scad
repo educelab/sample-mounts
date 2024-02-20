@@ -1,5 +1,6 @@
 // Includes
-use <Generic Mount Disc.scad>;
+// use <Generic Mount Disc.scad>
+use <Generic Mount Disc 65mm.scad>
 use <cylinder_outer.scad>
 
 //// CLI Params ////
@@ -10,12 +11,13 @@ side = "l";
 liningCavity = "";
 
 previewLiningWall = false;
+previewModel = false;
 
 modelRotate = [0, 0, 0];
 modelTranslate = [0, 0, 0];
 liningDiameter = 80;
 liningHeight = 155;
-wallThickness = 2.5;
+wallThickness = 2;
 
 generateOuterCylinder = true;
 honeycomb = true;
@@ -24,29 +26,31 @@ honeycombNumCols = 12;
 honeycombSpacing = 1.5;
 
 alignmentNubs=[];
-alignmentNubDiameter=7.5;
+alignmentNubSize=3;
+alignmentNubDepth=1.5;
+alignmentNubMargin=0.5;
 
 overhangRemoval = false;
 overhangStepSize = 0.5;
 
 escapeHoles = false;
-escapeOffset = 0;
+escapeOffset = 1.5;
 escapeDiameter = 4;
-escapeAngle = 45;
+escapeAngle = 15;
 
 labelLine1 = "GEN CYL";
 labelLine2 = "V2";
-labelLineHeight = 5;
+labelLineHeight = 3;
 labelDepth = 0.5;
 
 // Minor Parameters (in mm)
-bottomBuffer = 10;
-topBuffer = 3;
-internalGap = 4;
+bottomBuffer = 5;
+topBuffer = 5;
+internalGap = 3;
 
 // Other Minor Parameters
 baseLengthScale = 1.0;
-$fn = 48;
+$fn = 64;
 
 ////////////////////
 
@@ -84,6 +88,8 @@ stripWidth = 30;
 pegRadius = GenericMountDisc_NotchDiameter() / 2 - 0.2;
 pegOffset = [0, -GenericMountDisc_Diameter()/2 + pegRadius/4, GenericMountDisc_NotchZ() - GenericMountDisc_Thickness()];
 wallHeight = baseWidth/2 - GenericMountDisc_Diameter()/4 + 0.5;
+standWallWidth = outerDiameter + 0.5;
+standWallHeight = baseWidth/2 - outerDiameter/4;
 standWallThickness = GenericMountDisc_Thickness();
 supportWidth = baseWidth;
 supportDepth = 15;
@@ -282,37 +288,44 @@ module standBase() {
     }
 }
 
-module standWallSupport() {
+module standWallSupport(w) {
     hyp = sqrt(2*(supportDepth*supportDepth));
     translate([0,0,supportDepth/2]) rotate([0,0,90]) difference() {
-        cube([supportDepth, supportWidth, supportDepth], true);
+        cube([supportDepth, w, supportDepth], true);
         rotate([0,45,0]) translate([0,0,hyp/6]) cube([hyp + 1, supportWidth+1, supportDepth], true);
     }
 }
 
-module standWall() {
+module standBaseWall() {
     union() {
         cube([baseWidth, wallHeight, standWallThickness], true);
-        translate([0,-wallHeight/2 + supportDepth/2, standWallThickness/2 - 0.01]) standWallSupport();
+        translate([0,-wallHeight/2 + supportDepth/2, standWallThickness/2 - 0.01]) standWallSupport(supportWidth);
     }
 }
 
-nubDepth = 3;
-nubYScale = nubDepth * 2 / alignmentNubDiameter;
+module standSupportWall() {
+    union() {
+        cube([standWallWidth, standWallHeight, standWallThickness], true);
+        translate([0,-standWallHeight/2 + supportDepth/2, standWallThickness/2 - 0.01]) standWallSupport(standWallWidth);
+    }
+}
+
+nubDepth = alignmentNubDepth;
+nubSize = alignmentNubSize;
+hollowDepth = nubDepth + alignmentNubMargin*2;
+hollowSize = nubSize + alignmentNubMargin*2;
+wallSize = hollowSize + wallThickness;
+wallDepth = nubDepth + wallThickness;
 module alignmentNub() {
-    difference() {
-        scale([1,nubYScale,1]) sphere(d=alignmentNubDiameter);
-        translate([0,-alignmentNubDiameter/2,0]) cube(alignmentNubDiameter, center=true);
-    }
+    translate([0, nubDepth/2, 0]) cube([nubSize, nubDepth, nubSize], center=true);
 }
 
-module alignmentPoleWall() {
-    wallDiam = alignmentNubDiameter + wallThickness * 2;
-    wallYScale = (alignmentNubDiameter * nubYScale + wallThickness * 2) / wallDiam;
-    difference() {
-        scale([1,wallYScale,1]) sphere(d=wallDiam);
-        translate([0,-wallDiam/2,0]) cube(wallDiam, center=true);
-    }
+module alignmentWall() {
+    translate([0, wallDepth/2, 0]) cube([wallSize, wallDepth, wallSize], center=true);
+}
+
+module alignmentHollow() {
+    translate([0, hollowDepth/2, 0]) cube([hollowSize, hollowDepth, hollowSize], center=true);
 }
 
 // Show just the outer cylinder and the lining wall
@@ -323,7 +336,13 @@ if(previewLiningWall) {
 } else {
 
 
+// Show the model
+if(previewModel) { 
+    translate([0, 0, liningZ]) scrollModel();
+}
+
 // Generate left case, right case, or case stand
+rs = [0, 45];
 if(side == "l" || side == "ls") {
     difference() {
         union() {
@@ -331,11 +350,15 @@ if(side == "l" || side == "ls") {
              // Load Mount Disc
             GenericMountDisc([0, 0, -GenericMountDisc_Thickness()]);
             
-            // Alignment spheres
-            for(p = alignmentNubs) {
-                translate([-p[0],0,p[1]]) {
+            // Alignment nubs
+            if(len(alignmentNubs) > 0) {
+            for(idx = [0 : len(alignmentNubs) - 1]) {
+                p = alignmentNubs[idx];
+                r = rs[idx % 2];
+                translate([-p[0],0,p[1]]) rotate([0, r, 0]) {
                     alignmentNub();
                 }
+            }
             }
         }
 
@@ -361,17 +384,21 @@ else if (side == "r") {
             rightCase();
             
             // Alignment walls
+            if(len(alignmentNubs) > 0) {
             for(p = alignmentNubs) {
                 translate([-p[0],0,p[1]]) {
-                    alignmentPoleWall();
+                    alignmentWall();
                 }
+            }
             }
         }
         
-        // Alignment spheres
-        for(p = alignmentNubs) {
-            translate([-p[0],0,p[1]]) {
-                alignmentNub();
+        // Alignment nubs
+        for(idx = [0 : len(alignmentNubs) - 1]) {
+            p = alignmentNubs[idx];
+            r = rs[idx % 2];
+            translate([-p[0],0,p[1]]) rotate([0, r, 0]) scale([1.01, 1.01, 1.01]) {
+                alignmentHollow();
             }
         }
 
@@ -395,8 +422,8 @@ union() {
         // Stand base and walls
         union() {
             translate(baseOffset) standBase();
-            translate([0, -baseWidth/2 + wallHeight/2 - 0.5, baseLengthScale*outerHeight - 1.25*baseThickness]) rotate([0,180,0]) standWall();
-            translate([0, -baseWidth/2 + wallHeight/2 - 0.5, -GenericMountDisc_Thickness()/2]) standWall();
+            translate([0, -baseWidth/2 + standWallHeight/2 - 0.5, baseLengthScale*outerHeight - 1.25*baseThickness]) rotate([0,180,0]) standSupportWall();
+            translate([0, -baseWidth/2 + wallHeight/2 - 0.5, -GenericMountDisc_Thickness()/2]) standBaseWall();
         }
 
         
