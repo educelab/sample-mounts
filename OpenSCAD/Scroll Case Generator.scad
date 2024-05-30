@@ -1,22 +1,23 @@
 // Includes
-// use <Generic Mount Disc.scad>
-use <Generic Mount Disc 65mm.scad>
+use <Generic Mount Disc.scad>
+// use <Generic Mount Disc 65mm.scad>
 use <cylinder_outer.scad>
 
 //// CLI Params ////
-scroll = "";
-lining = "";
-liningWall = "";
+scroll = "/Users/stephen/data/Herculaneum_Scrolls/Bodleian Scrolls/3D/202405 - Diamond scan cases/Scroll 25/4 - Downsampled Model/20240515174439_Bod-Scroll25-full+mask_100k.stl";
+lining = "/Users/stephen/data/Herculaneum_Scrolls/Bodleian Scrolls/3D/202405 - Diamond scan cases/Scroll 25/7 - Lining/20240515174439_Bod-Scroll25-full+mask_lining.stl";
+liningWall = "/Users/stephen/data/Herculaneum_Scrolls/Bodleian Scrolls/3D/202405 - Diamond scan cases/Scroll 25/7 - Lining/20240515174439_Bod-Scroll25-full+mask_liningwall.stl";
 side = "l";
 liningCavity = "";
 
 previewLiningWall = false;
 previewModel = false;
 
-modelRotate = [0, 0, 0];
-modelTranslate = [0, 0, 0];
-liningDiameter = 80;
-liningHeight = 155;
+scrollHeight = 163.89;
+liningDiameter = 67;
+modelRotate = [0, 0, 107];
+modelTranslate = [0, 0, 85];
+liningOffset = 3;
 wallThickness = 2;
 
 generateOuterCylinder = true;
@@ -25,7 +26,14 @@ honeycombHoleEdges = 6;
 honeycombNumCols = 12;
 honeycombSpacing = 1.5;
 
-alignmentNubs=[];
+alignmentNubs=[
+    [-35, 10],
+    [-35, 95],
+    [-35, 180],
+    [35, 10],
+    [35, 95],
+    [35, 180],
+];
 alignmentNubSize=3;
 alignmentNubDepth=1.5;
 alignmentNubMargin=0.5;
@@ -38,10 +46,12 @@ escapeOffset = 1.5;
 escapeDiameter = 4;
 escapeAngle = 15;
 
-labelLine1 = "GEN CYL";
-labelLine2 = "V2";
+labelLine1 = "PHerc. Bod. 25";
+labelLine2 = "V1a";
 labelLineHeight = 3;
 labelDepth = 0.5;
+
+markerRings = true;
 
 // Minor Parameters (in mm)
 bottomBuffer = 5;
@@ -57,6 +67,7 @@ $fn = 64;
 // Useful Vars
 bottomWallThickness = max(2, wallThickness);
 liningWallDiameter = liningDiameter + (2 * wallThickness);
+liningHeight = scrollHeight + liningOffset * 2;
 liningWallHeight = liningHeight + (2 * wallThickness);
 innerDiameter = liningWallDiameter + (2 * internalGap);
 innerHeight = bottomBuffer + liningWallHeight + topBuffer;
@@ -68,9 +79,9 @@ innerCavityZ = outerShellZ + bottomWallThickness;
 liningZ = innerCavityZ + bottomBuffer + wallThickness;
 overhangIterations = max(ceil((liningDiameter + wallThickness) * 0.5 / overhangStepSize), 1);
 
-cubeWidth = outerDiameter + 1;
+cubeWidth = outerDiameter * 1.1;
 cubeDepth = 0.55 * outerDiameter;
-cubeHeight = outerHeight + 1;
+cubeHeight = outerHeight * 1.1;
 
 escapeDistance = ((((liningDiameter+wallThickness)/2) + ((outerDiameter-wallThickness)/2))/2) + escapeOffset;
 escapeOffsetX = cos(escapeAngle) * escapeDistance;
@@ -136,6 +147,12 @@ module liningCavity() {
     }
 }
 
+module markerRing() {
+    rotate_extrude() translate([outerDiameter/2, 0, 0]) circle(0.5, $fn=100);
+    ringHeight = 3;
+    rotate_extrude() translate([outerDiameter/2-wallThickness, -ringHeight/2, 0]) square([wallThickness, ringHeight]);
+}
+
 module honeycombCylinder() {
     gapRot = (honeycombSpacing / outerDiameter) * 180 / PI;
     hexRot = (360 - gapRot * honeycombNumCols) / honeycombNumCols;
@@ -164,6 +181,20 @@ module honeycombCylinder() {
         translate([0, 0, innerCavityZ]) cylinder(h=innerHeight, d=innerDiameter);
         cutboxH = outerHeight - wallThickness - bottomWallThickness;
         translate([0, 0, cutboxH/2 + bottomWallThickness]) cube([outerDiameter + 1, outerDiameter + 1, cutboxH], center=true);
+    }
+
+    // Scroll top and bottom marker rings
+    if(markerRings) {
+        // lining bottom
+        translate([0, 0, liningZ]) translate(modelTranslate) translate([0, 0, -liningHeight/2]) markerRing();
+        // nominal scroll bottom
+        translate([0, 0, liningZ]) translate(modelTranslate) translate([0, 0, -scrollHeight/2]) markerRing();
+        // nominal scroll top
+        translate([0, 0, liningZ]) translate(modelTranslate) translate([0, 0, scrollHeight/2]) markerRing();
+        // lining top
+        translate([0, 0, liningZ]) translate(modelTranslate) translate([0, 0, liningHeight/2]) markerRing();
+        // scroll/lining midpoint
+        translate([0, 0, liningZ]) translate(modelTranslate) markerRing();
     }
 }
 
@@ -426,8 +457,8 @@ union() {
             translate([0, -baseWidth/2 + wallHeight/2 - 0.5, -GenericMountDisc_Thickness()/2]) standBaseWall();
         }
 
-        
-        cylinder(h=outerHeight+1, d=outerDiameter); 
+        cylinder(h=outerHeight+1, d=outerDiameter);
+        honeycombCylinder();
         translate([0, 0, -GenericMountDisc_Thickness()-1]) cylinder_outer(h=GenericMountDisc_Thickness()+10, d=GenericMountDisc_Diameter(), fn=128);
         
         // Alignment notch
