@@ -80,7 +80,7 @@ liningZ = innerCavityZ + bottomBuffer + wallThickness;
 overhangIterations = max(ceil((liningDiameter + wallThickness) * 0.5 / overhangStepSize), 1);
 
 cubeWidth = outerDiameter * 1.1;
-cubeDepth = 0.55 * outerDiameter;
+cubeDepth = outerDiameter * 2;
 cubeHeight = outerHeight * 1.1;
 
 escapeDistance = ((((liningDiameter+wallThickness)/2) + ((outerDiameter-wallThickness)/2))/2) + escapeOffset;
@@ -271,7 +271,16 @@ module completeCase()
 // Generate the "left" half cylinder
 module leftCase() {
     difference() {
-        completeCase();
+        union() {
+            completeCase();
+
+            if(overhangRemoval) {
+                for(i=[0:overhangIterations]) {
+                    translate([0, i*overhangStepSize, liningZ]) liningWallModel();
+                }
+            }
+        }
+
         translate([-cubeWidth/2, 0, 0]) cube([cubeWidth, cubeDepth, cubeHeight]);
 
         if(overhangRemoval) {
@@ -285,7 +294,16 @@ module leftCase() {
 // Generate the "right" half cylinder
 module rightCase() {
     difference() {
-        completeCase();
+        union() {
+            completeCase();
+
+            if(overhangRemoval) {
+                for(i=[0:overhangIterations]) {
+                    translate([0, -i*overhangStepSize, liningZ]) liningWallModel();
+                }
+            }
+        }
+
         translate([-cubeWidth/2, -cubeDepth, 0]) cube([cubeWidth, cubeDepth, cubeHeight]);
 
         if(overhangRemoval) {
