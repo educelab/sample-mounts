@@ -7,7 +7,7 @@ use <cylinder_outer.scad>
 scroll = "/Users/stephen/data/Herculaneum_Scrolls/Bodleian Scrolls/3D/202405 - Diamond scan cases/Scroll 25/4 - Downsampled Model/20240515174439_Bod-Scroll25-full+mask_100k.stl";
 lining = "/Users/stephen/data/Herculaneum_Scrolls/Bodleian Scrolls/3D/202405 - Diamond scan cases/Scroll 25/7 - Lining/20240515174439_Bod-Scroll25-full+mask_lining.stl";
 liningWall = "/Users/stephen/data/Herculaneum_Scrolls/Bodleian Scrolls/3D/202405 - Diamond scan cases/Scroll 25/7 - Lining/20240515174439_Bod-Scroll25-full+mask_liningwall.stl";
-side = "l";
+side = "s";
 liningCavity = "";
 
 previewLiningWall = false;
@@ -93,7 +93,8 @@ escapeTopZ = outerHeight - wallThickness;
 // Base
 baseLength = GenericMountDisc_Thickness() + outerHeight*baseLengthScale;
 baseWidth = max(GenericMountDisc_Diameter(), outerDiameter) + 0.5;
-baseThickness = 5;
+baseThickness = 12.7;
+baseWallThickness = 5;
 baseOffset = [-baseWidth/2, -baseWidth/2 - baseThickness - 0.5, -GenericMountDisc_Thickness()];
 stripWidth = 30;
 pegRadius = GenericMountDisc_NotchDiameter() / 2 - 0.2;
@@ -319,21 +320,93 @@ module standPeg() {
     translate([0, 0, 0]) rotate([-90,0,0]) cylinder_outer(h=pegRadius, r=pegRadius, center=true);
 }
 
+eps = 0.4;
+holeDist = 25;
+holeDiam = 6.5 + eps*2;
+recessDiam = 15 + eps*2;
+recessDepth = 6 + eps;
+cols = 11;
+rows = 11;
+plateD = baseThickness;
+
+module DiamondInterfaceHoles(rangeX = [1, cols], rangeY = [1, rows], recess = false, circular = false) {
+    for(y = [rangeY[0] : rangeY[1]]) {
+        for(x = [rangeX[0] : rangeX[1]]) {
+            if(circular) {
+                x2 = abs(x - 12/2);
+                y2 = abs(y - 12/2);
+                if(x2 + y2 <= 14/2) {
+                    translate([x*holeDist, y*holeDist, -.5]) cylinder_outer(h = plateD + 1, d=holeDiam);
+                    if(recess) {
+                        translate([x*holeDist, y*holeDist, recessDepth]) cylinder_outer(h = recessDepth+15, d=recessDiam);
+                    }
+                }
+            } else {    
+                translate([x*holeDist+7, y*holeDist, -.5]) cylinder_outer(h = plateD + 1, d=holeDiam);
+                if(recess) {
+                    translate([x*holeDist+7, y*holeDist, recessDepth]) cylinder_outer(h = recessDepth+15, d=recessDiam);
+                }
+            }
+            
+        }
+    }
+}
+
+nubWidth = 6;
+
 module standBase() {
+     translate([baseWidth, 0, 0])
+     rotate([90, 0, 180])
      difference() {
-        cube([baseWidth, baseThickness, baseLength]);
+        union() {
+            cube([baseWidth, baseLength, baseThickness]);
+            translate([baseWidth, baseLength/8, baseThickness-nubWidth])
+            rotate([0, 90, 0])
+            cylinder(h=nubWidth, r=3*nubWidth/4);
+            translate([baseWidth, 5*baseLength/16, baseThickness-nubWidth])
+            rotate([0, 90, 0])
+            cylinder(h=nubWidth, r=3*nubWidth/4);
+            translate([baseWidth, baseLength/2, baseThickness-nubWidth])
+            rotate([0, 90, 0])
+            cylinder(h=nubWidth, r=3*nubWidth/4);
+            translate([baseWidth, 11*baseLength/16, baseThickness-nubWidth])
+            rotate([0, 90, 0])
+            cylinder(h=nubWidth, r=3*nubWidth/4);
+            translate([baseWidth, 7*baseLength/8, baseThickness-nubWidth])
+            rotate([0, 90, 0])
+            cylinder(h=nubWidth, r=3*nubWidth/4);
+            translate([-nubWidth, baseLength/8, baseThickness-nubWidth])
+            rotate([0, 90, 0])
+            cylinder(h=nubWidth, r=3*nubWidth/4);
+            translate([-nubWidth, 5*baseLength/16, baseThickness-nubWidth])
+            rotate([0, 90, 0])
+            cylinder(h=nubWidth, r=3*nubWidth/4);
+            translate([-nubWidth, baseLength/2, baseThickness-nubWidth])
+            rotate([0, 90, 0])
+            cylinder(h=nubWidth, r=3*nubWidth/4);
+            translate([-nubWidth, 11*baseLength/16, baseThickness-nubWidth])
+            rotate([0, 90, 0])
+            cylinder(h=nubWidth, r=3*nubWidth/4);
+            translate([-nubWidth, 7*baseLength/8, baseThickness-nubWidth])
+            rotate([0, 90, 0])
+            cylinder(h=nubWidth, r=3*nubWidth/4);
+        }
+        
+        DiamondInterfaceHoles(rangeX=[1,3], rangeY=[2,6], recess=true);
 
         // diff out the middle strip
-        diffWidth = (baseWidth - stripWidth) / 2 + 1;
-        diffXOffset = (baseWidth - stripWidth) / 2;
-        diffThickness = baseThickness*2;
-        diffHeight = baseLength - (stripWidth * 2);
-        translate([diffXOffset + stripWidth, -diffThickness/4, stripWidth]) cube([diffWidth, diffThickness, diffHeight]);
-        translate([-1, -diffThickness/4, stripWidth]) cube([diffWidth, diffThickness, diffHeight]);
+        // diffWidth = (baseWidth - stripWidth) / 2 + 1;
+        // diffXOffset = (baseWidth - stripWidth) / 2;
+        // diffThickness = baseThickness*2;
+        // diffHeight = baseLength - (stripWidth * 2);
+        // translate([diffXOffset + stripWidth, -diffThickness/4, stripWidth]) cube([diffWidth, diffThickness, diffHeight]);
+        // translate([-1, -diffThickness/4, stripWidth]) cube([diffWidth, diffThickness, diffHeight]);
 
         // Label
-        translate([baseWidth/2, baseThickness + labelDepthExtra, baseLength / 2])
-            rotate([90, -90, 0]) labelModel();
+        // translate([baseWidth/2, baseThickness + labelDepthExtra, baseLength / 2])
+            // rotate([90, -90, 0]) labelModel();
+           
+        
     }
 }
 
@@ -471,7 +544,7 @@ union() {
         // Stand base and walls
         union() {
             translate(baseOffset) standBase();
-            translate([0, -baseWidth/2 + standWallHeight/2 - 0.5, baseLengthScale*outerHeight - 1.25*baseThickness]) rotate([0,180,0]) standSupportWall();
+            translate([0, -baseWidth/2 + standWallHeight/2 - 0.5, baseLengthScale*outerHeight - 1.25*baseWallThickness]) rotate([0,180,0]) standSupportWall();
             translate([0, -baseWidth/2 + wallHeight/2 - 0.5, -GenericMountDisc_Thickness()/2]) standBaseWall();
         }
 
