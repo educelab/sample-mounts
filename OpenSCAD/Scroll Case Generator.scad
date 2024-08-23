@@ -4,20 +4,20 @@ use <Generic Mount Disc.scad>
 use <cylinder_outer.scad>
 
 //// CLI Params ////
-scroll = "/Users/stephen/data/Herculaneum_Scrolls/Bodleian Scrolls/3D/202405 - Diamond scan cases/Scroll 25/4 - Downsampled Model/20240515174439_Bod-Scroll25-full+mask_100k.stl";
-lining = "/Users/stephen/data/Herculaneum_Scrolls/Bodleian Scrolls/3D/202405 - Diamond scan cases/Scroll 25/7 - Lining/20240515174439_Bod-Scroll25-full+mask_lining.stl";
-liningWall = "/Users/stephen/data/Herculaneum_Scrolls/Bodleian Scrolls/3D/202405 - Diamond scan cases/Scroll 25/7 - Lining/20240515174439_Bod-Scroll25-full+mask_liningwall.stl";
+scroll = "";
+lining = "";
+liningWall = "";
 side = "l";
 liningCavity = "";
 
 previewLiningWall = false;
 previewModel = false;
 
-scrollHeight = 163.89;
-liningDiameter = 67;
-modelRotate = [0, 0, 107];
-modelTranslate = [0, 0, 85];
-liningOffset = 3;
+scrollHeight = 155;
+liningDiameter = 80;
+modelRotate = [0, 0, 0];
+modelTranslate = [0, 0, 0];
+liningOffset = 2;
 wallThickness = 2;
 
 generateOuterCylinder = true;
@@ -26,15 +26,8 @@ honeycombHoleEdges = 6;
 honeycombNumCols = 12;
 honeycombSpacing = 1.5;
 
-alignmentNubs=[
-    [-35, 10],
-    [-35, 95],
-    [-35, 180],
-    [35, 10],
-    [35, 95],
-    [35, 180],
-];
-alignmentNubSize=3;
+alignmentNubs=[[-20, 5], [20, 5], [20, 250], [-20, 250]];
+alignmentNubSize=4;
 alignmentNubDepth=1.5;
 alignmentNubMargin=0.5;
 
@@ -46,9 +39,9 @@ escapeOffset = 1.5;
 escapeDiameter = 4;
 escapeAngle = 15;
 
-labelLine1 = "PHerc. Bod. 25";
-labelLine2 = "V1a";
-labelLineHeight = 3;
+labelLine1 = "A74577-0";
+labelLine2 = "V1";
+labelLineHeight = 5;
 labelDepth = 0.5;
 
 markerRings = true;
@@ -186,15 +179,15 @@ module honeycombCylinder() {
     // Scroll top and bottom marker rings
     if(markerRings) {
         // lining bottom
-        translate([0, 0, liningZ]) translate(modelTranslate) translate([0, 0, -liningHeight/2]) markerRing();
+        translate([0, 0, liningZ]) translate([0, 0, modelTranslate[2]]) markerRing();
         // nominal scroll bottom
-        translate([0, 0, liningZ]) translate(modelTranslate) translate([0, 0, -scrollHeight/2]) markerRing();
+        translate([0, 0, liningZ]) translate([0, 0, modelTranslate[2]]) translate([0, 0, liningHeight - scrollHeight]) markerRing();
         // nominal scroll top
-        translate([0, 0, liningZ]) translate(modelTranslate) translate([0, 0, scrollHeight/2]) markerRing();
+        translate([0, 0, liningZ]) translate([0, 0, modelTranslate[2]]) translate([0, 0, scrollHeight]) markerRing();
         // lining top
-        translate([0, 0, liningZ]) translate(modelTranslate) translate([0, 0, liningHeight/2]) markerRing();
+        translate([0, 0, liningZ]) translate([0, 0, modelTranslate[2]]) translate([0, 0, liningHeight]) markerRing();
         // scroll/lining midpoint
-        translate([0, 0, liningZ]) translate(modelTranslate) markerRing();
+        translate([0, 0, liningZ]) translate([0, 0, modelTranslate[2]]) translate([0, 0, scrollHeight / 2]) markerRing();
     }
 }
 
@@ -386,6 +379,8 @@ if(previewLiningWall) {
 
 
 // Show the model
+echo("Final model translation: ", [modelTranslate[0], modelTranslate[1], liningZ + modelTranslate[2]]);
+echo("Final model rotation: ", modelRotate);
 if(previewModel) { 
     translate([0, 0, liningZ]) scrollModel();
 }
