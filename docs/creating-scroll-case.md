@@ -1,5 +1,7 @@
 # Creating a scroll case
 
+This is a WIP document which roughly describes the method for creating a scroll case.
+
 ## Requirements
 - OpenSCAD [[link]](https://openscad.org/downloads.html)
   - At the time of this writing, the latest release is 2021.01, which does not run well 
@@ -15,7 +17,7 @@
   - Center mesh on origin
   - Orient mesh length along the Z axis, as axis-aligned as possible
   - Set bottom of mesh at Z = 0
-- Use ACVD to resample mesh to like 
+- (Optional) Use ACVD to resample mesh to fewer faces
 - Save mesh as an STL
 - MeshMixer
   - Load model
@@ -39,6 +41,6 @@
   - Set `liningOffset` and `wallThickness` to what was used in MeshMixer
   - Use `modelRotate` and `modelTranslate` to tweak the sample's orientation w.r.t. the case.
     Major adjustments should be applied to the original models in MeshLab.
-  - Set the positions of the alignment nubs by setting `alignmentNubs` to an array of coordinate pairs: `[[-10, 5],[10, 4]]`.
+  - Set the positions of the alignment nubs by setting `alignmentNubs` to an array of coordinate pairs: e.g. `[[-10, 5],[10, 4]]`.
     Each pair corresponds to an absolute position on the XZ plane.
 - Set up and run the case generation script
