@@ -18,6 +18,7 @@ rows = 11;
 function DiamondPlateWidth() = plateW;
 function DiamondPlateDepth() = plateD;
 
+// cut outs for Diamond's provided interface plate
 module DiamondInterfaceHoles(rangeX = [1, cols], rangeY = [1, rows], recess = false, circular = false) {
     for(y = [rangeY[0] : rangeY[1]]) {
         for(x = [rangeX[0] : rangeX[1]]) {
@@ -41,6 +42,7 @@ module DiamondInterfaceHoles(rangeX = [1, cols], rangeY = [1, rows], recess = fa
     }
 }
 
+// reference model for Diamond's square interface plate
 module DiamondInterfacePlate() {
     translate([-plateW/2, -plateW/2, -plateD])
     difference() {
@@ -49,6 +51,7 @@ module DiamondInterfacePlate() {
     }
 }
 
+// reference model for Diamond's circular interface plate
 module DiamondInterfacePlateCircular() {
     difference() {
         translate([0,0,-plateD]) cylinder_outer(h=plateD, d=400);
@@ -56,6 +59,7 @@ module DiamondInterfacePlateCircular() {
     }
 }
 
+// Diamond interface plate with EduceLab mounting ring
 module DiamondMountRing() {
     h=11;
     difference() {
