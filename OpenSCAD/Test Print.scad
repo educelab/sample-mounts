@@ -4,13 +4,13 @@ $fn = 64;
 
 module construct() {
 module rodHole() {
-    translate([0,0,-10]) cylinder_outer (h=10, d=19.05, center=true);
+    translate([0,0,-12.5]) cylinder_outer (h=10, d=19.09, center=true);
 }
 module num8Screw() {
     //the shaft of the screw
-    cylinder_outer(h=20, d=7.9375, center=true);
+    cylinder_outer(h=20, d=7.9775, center=true);
     //the head of the screw
-    translate([0, 0, 1.04]) cylinder_outer(h= 7.9348, d= 11.9226, center=true);  
+    translate([0, 0, 1.04]) cylinder_outer(h= 7.9348, d= 11.9626, center=true);  
 } 
 difference() {
     GenericMountRing();
