@@ -62,7 +62,7 @@ class HoneycombConfig:
 class ShellConfig:
     """Outer cylinder around the lining. `open_top` cuts away its upper part."""
 
-    type: str = "honeycomb"  # "honeycomb" or "solid"
+    type: str = "honeycomb"  # "honeycomb", "solid", or "none"
     open_top: bool = False
     marker_rings: bool = True
     honeycomb: HoneycombConfig = field(default_factory=HoneycombConfig)
@@ -70,14 +70,31 @@ class ShellConfig:
 
 @dataclass
 class EndsConfig:
-    """What closes the case top and bottom. "shell" is the shell's floor and lid."""
+    """What closes the case top and bottom.
+
+    "shell" is the shell's own floor and lid. "caps" are villa's square end
+    caps, with bolt tabs that clamp the halves together (M4 by default) and
+    counterbored holes in the bottom cap for mounting (M6 by default). The
+    remaining keys only apply to caps.
+    """
 
     type: str = "shell"
+    cap_height: float = 10.0
+    corner_fillet: float = 6.25
+    bolt_hole_diameter: float = 5.0
+    bolt_counterbore_diameter: float = 8.0
+    bolt_counterbore_depth: float = 2.0
+    nut_diameter: float = 9.0
+    nut_depth: float = 3.5
+    mount_hole_spacing: float = 50.0
+    mount_hole_diameter: float = 6.8
+    mount_counterbore_diameter: float = 10.5
+    mount_counterbore_depth: float = 5.0
 
 
 @dataclass
 class MountConfig:
-    type: str = "generic-112.5"  # "generic-112.5" or "generic-65"
+    type: str = "generic-112.5"  # "generic-112.5", "generic-65", "kinematic", or "none"
 
 
 @dataclass
@@ -143,13 +160,29 @@ class CaseConfig:
 # keys must default to behavior that leaves its geometry unchanged.
 PRESETS: dict[str, dict[str, Any]] = {
     "educelab.v1": {},
+    # ScrollPrize/villa foundation/scrollcase at 7d6a82c (2026-10-01)
+    "villa.2026-10": {
+        "bottom_buffer": 3.0,
+        "top_buffer": 3.0,
+        "scroll": {"decimate_max_error": 0.02},
+        "split": {"type": "curve"},
+        "shell": {"type": "none", "marker_rings": False},
+        "ends": {"type": "caps"},
+        "mount": {"type": "kinematic"},
+        "label": {"height": 8.0, "font": "Arial"},
+        "stand": {"enabled": False},
+    },
 }
+
+# Mount diameters, for sizing caps. Must match mount_disc.MOUNT_DISCS, which
+# can't be imported here because it loads build123d.
+MOUNT_DIAMETERS = {"generic-112.5": 112.5, "generic-65": 65.0, "kinematic": 112.5, "none": 0.0}
 
 _CHOICES = {
     ("split", "type"): ("plane", "curve"),
-    ("shell", "type"): ("honeycomb", "solid"),
-    ("ends", "type"): ("shell",),
-    ("mount", "type"): ("generic-112.5", "generic-65"),
+    ("shell", "type"): ("honeycomb", "solid", "none"),
+    ("ends", "type"): ("shell", "caps"),
+    ("mount", "type"): tuple(MOUNT_DIAMETERS),
     ("scroll", "smoothing"): ("none", "denoise", "shrink_expand"),
 }
 
@@ -199,8 +232,20 @@ def validate(cfg: CaseConfig) -> None:
         f'shell.open_top requires ends.type = "shell" (got {cfg.ends.type!r})',
     )
     require(
+        cfg.ends.type != "shell" or cfg.shell.type != "none",
+        'ends.type = "shell" needs a shell to provide the floor and lid (shell.type = "none")',
+    )
+    require(
+        not cfg.escape_holes.enabled or cfg.shell.type != "none",
+        'escape_holes need a shell; they sit between the lining and shell (shell.type = "none")',
+    )
+    require(
         not cfg.stand.enabled or cfg.mount.type.startswith("generic-"),
         f"stand requires a generic mount disc (mount.type = {cfg.mount.type!r})",
+    )
+    require(
+        not cfg.stand.enabled or cfg.ends.type == "shell",
+        f'stand requires ends.type = "shell" to fit its cradle (got {cfg.ends.type!r})',
     )
 
 
@@ -233,7 +278,9 @@ class Layout:
     scroll_height: float
     lining_offset: float
     wall: float
+    # Floor (or bottom cap) and lid (or top cap) thicknesses
     bottom_wall: float
+    lid_thickness: float
     cavity_diameter: float
     cavity_height: float
     lining_diameter: float
@@ -245,16 +292,29 @@ class Layout:
     cavity_z: float
     scroll_z: float
     split_span: float
+    # Half the side of the square caps, or 0 without caps
+    cap_half_width: float
 
     @classmethod
     def from_config(cls, cfg: CaseConfig, scroll_radius: float, scroll_height: float):
+        """Without a shell, the inner and outer diameters are the lining's."""
         wall = cfg.wall_thickness
-        bottom_wall = max(2.0, wall)
+        caps = cfg.ends.type == "caps"
+        bottom_wall = cfg.ends.cap_height if caps else max(2.0, wall)
+        lid = cfg.ends.cap_height if caps else wall
         cavity_diameter = 2 * (scroll_radius + cfg.lining_offset)
         cavity_height = scroll_height + 2 * cfg.lining_offset
         lining_diameter = cavity_diameter + 2 * wall
-        inner_diameter = lining_diameter + 2 * cfg.internal_gap
-        outer_diameter = inner_diameter + 2 * wall
+        if cfg.shell.type == "none":
+            inner_diameter = outer_diameter = lining_diameter
+            # villa's curve ends at the cavity, where its end posts sit
+            split_span = cavity_diameter / 2
+        else:
+            inner_diameter = lining_diameter + 2 * cfg.internal_gap
+            outer_diameter = inner_diameter + 2 * wall
+            # The split curve runs to the middle of the shell wall
+            split_span = (inner_diameter + outer_diameter) / 4
+        cap_half_width = max(MOUNT_DIAMETERS[cfg.mount.type], outer_diameter) / 2 if caps else 0.0
         inner_height = cfg.bottom_buffer + cavity_height + 2 * wall + cfg.top_buffer
         cavity_z = bottom_wall + cfg.bottom_buffer + wall
         return cls(
@@ -263,6 +323,7 @@ class Layout:
             lining_offset=cfg.lining_offset,
             wall=wall,
             bottom_wall=bottom_wall,
+            lid_thickness=lid,
             cavity_diameter=cavity_diameter,
             cavity_height=cavity_height,
             lining_diameter=lining_diameter,
@@ -270,11 +331,11 @@ class Layout:
             inner_z=bottom_wall,
             inner_height=inner_height,
             outer_diameter=outer_diameter,
-            outer_height=inner_height + bottom_wall + wall,
+            outer_height=inner_height + bottom_wall + lid,
             cavity_z=cavity_z,
             scroll_z=cavity_z + cfg.lining_offset,
-            # The split curve runs to the middle of the shell wall
-            split_span=(inner_diameter + outer_diameter) / 4,
+            split_span=split_span,
+            cap_half_width=cap_half_width,
         )
 
 

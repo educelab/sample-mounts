@@ -6,7 +6,7 @@ plates and spindle bases still use.
 
 from dataclasses import dataclass
 
-from build123d import Part
+from build123d import Align, Box, BuildPart, Cylinder, Locations, Mode, Part, PolarLocations
 
 from .scad import cube, cylinder, rotate, translate
 
@@ -44,6 +44,41 @@ class MountDisc:
         return translate([0, 0, -self.thickness], disc)
 
 
+@dataclass(frozen=True)
+class KinematicDisc:
+    """ScrollPrize/villa's mount disc, with V-slots for a kinematic mount."""
+
+    diameter: float = 112.5
+    thickness: float = 10.0
+    num_slots: int = 3
+    slot_width: float = 2.0
+    slot_length: float = 10.0
+    # The right half's side of the disc top is lowered this much so the
+    # right half doesn't bind on it
+    right_clearance: float = 0.5
+
+    @property
+    def slot_radius(self) -> float:
+        return self.diameter / 2 * 2 / 3
+
+    def solid(self) -> Part:
+        """The disc with its top face at Z=0."""
+        with BuildPart() as disc:
+            Cylinder(
+                self.diameter / 2, self.thickness, align=(Align.CENTER, Align.CENTER, Align.MAX)
+            )
+            with Locations((0, 0, -self.thickness)):
+                with PolarLocations(self.slot_radius, self.num_slots, start_angle=90):
+                    Box(
+                        self.slot_length,
+                        self.slot_width,
+                        self.slot_width,
+                        rotation=(45, 0, 0),
+                        mode=Mode.SUBTRACT,
+                    )
+        return disc.part
+
+
 # Keyed by `mount.type`
 MOUNT_DISCS = {
     "generic-112.5": MountDisc(
@@ -66,4 +101,5 @@ MOUNT_DISCS = {
         widen_notch=True,
         pocket_height=6,
     ),
+    "kinematic": KinematicDisc(),
 }

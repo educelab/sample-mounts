@@ -130,3 +130,58 @@ def test_nubs_off_the_divider_are_rejected(tmp_path):
     cfg = config_from_dict({"nubs": {"positions": [[-30, 20]]}})
     with pytest.raises(ValueError, match=r"nubs.positions\[0\]"):
         build(cfg, tmp_path, parts=("left",))
+
+
+@pytest.fixture(scope="module")
+def villa_case(tmp_path_factory):
+    cfg = config_from_dict({"style": "villa.2026-10", "name": "v", "label": {"line1": "PHERC"}})
+    result = build(cfg, tmp_path_factory.mktemp("villa"))
+    assert set(result.outputs) == {"scroll", "left", "right"}
+    meshes = {k: mm.loadMesh(p) for k, p in result.outputs.items()}
+    return cfg, result.layout, meshes
+
+
+def test_villa_case_features(villa_case):
+    cfg, L, meshes = villa_case
+    left, right = meshes["left"], meshes["right"]
+    for mesh in (left, right):
+        assert is_closed(mesh)
+        assert len(mm.getAllComponents(mesh)) == 1
+
+    half, h = L.cap_half_width, cfg.ends.cap_height
+    (x0, _, z0), (x1, _, z1) = _bounds(left)
+    # Bolt tabs stick out one cap height past the square; disc below the cap
+    assert (x0, x1) == pytest.approx((-half - h, half + h), abs=0.05)
+    assert (z0, z1) == pytest.approx((-10, L.outer_height), abs=1e-3)
+
+    tab = half + h / 2
+    for mesh in (left, right):
+        assert not inside(mesh, (tab, 0.0, h / 2)) and not inside(mesh, (-tab, 0.0, h / 2))
+    # Tab material clear of the bolt hole, counterbore, and nut pocket
+    assert inside(left, (tab, -3.0, 0.5))
+    # Kinematic slot at 90 degrees, cut into the disc bottom
+    assert not inside(left, (0, 37.5, -9.9))
+    # The right half's side of the disc top is lowered 0.5mm
+    assert inside(left, (0, -30, -0.25)) and not inside(left, (0, 30, -0.25))
+    # No shell: the space beside the lining is open
+    z = L.scroll_z + L.scroll_height / 2
+    assert not inside(left, (0, -(L.lining_diameter / 2 + 2), z))
+
+
+def test_components_compose(tmp_path):
+    """villa's caps and disc around the honeycomb shell, on a curved split."""
+    cfg = config_from_dict(
+        {
+            "name": "mix",
+            "split": {"type": "curve"},
+            "ends": {"type": "caps"},
+            "mount": {"type": "kinematic"},
+            "stand": {"enabled": False},
+            "escape_holes": {"enabled": True},
+        }
+    )
+    result = build(cfg, tmp_path)
+    for side in ("left", "right"):
+        mesh = mm.loadMesh(result.outputs[side])
+        assert is_closed(mesh), side
+        assert len(mm.getAllComponents(mesh)) == 1, side

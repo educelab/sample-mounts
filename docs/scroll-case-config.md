@@ -22,6 +22,29 @@ the preset's `[shell]` settings.
 | Style | Description |
 |---|---|
 | `educelab.v1` | The default: honeycomb shell with floor and lid, flat split, Generic Mount Disc, stand. The former OpenSCAD generator's design. |
+| `villa.2026-10` | [ScrollPrize/villa's case](https://github.com/ScrollPrize/villa/tree/main/foundation/scrollcase) at commit `7d6a82c` (2026-10-01): no shell, curved split ending in round posts, square bolted caps with upstream's label layout, kinematic mount disc, 3 mm margins, no stand. |
+
+Components mix freely within the [valid combinations](#valid-combinations),
+e.g. villa's caps and kinematic disc around a honeycomb shell:
+
+```toml
+style = "educelab.v1"
+[split]
+type = "curve"
+[ends]
+type = "caps"
+[mount]
+type = "kinematic"
+[stand]
+enabled = false
+```
+
+Known differences from upstream in `villa.2026-10`: the scroll fit uses a
+tighter tolerance (upstream's stops about 1° off-axis and oversizes the
+radius by about 1 mm), the wide-axis rotation normalizes its vector before
+taking the angle, `voxel_size` is absolute (upstream uses 0.4% of the mesh
+diagonal), and `"denoise"` smoothing uses `smoothing_amount` (upstream
+ignores its strength setting).
 
 Released styles never change, so a config rebuilds the same case for as
 long as it names the same style. A design update becomes a new version
@@ -84,7 +107,7 @@ The outer cylinder around the lining, including its floor and lid.
 
 | Key | Default | Description |
 |---|---|---|
-| `type` | `"honeycomb"` | `"honeycomb"` (hexagonal cutouts) or `"solid"`. |
+| `type` | `"honeycomb"` | `"honeycomb"` (hexagonal cutouts), `"solid"`, or `"none"`. With `"none"` the case is just the lining, divider, and ends, as upstream; the divider then ends in round posts at the cavity edge. |
 | `open_top` | `false` | Cuts away the upper shell on both sides, leaving an open cradle around the lining. |
 | `marker_rings` | `true` | Raised rings at the cavity bottom, scroll bottom, scroll middle, scroll top, and cavity top. |
 
@@ -105,7 +128,20 @@ What closes the top and bottom of the case.
 
 | Key | Default | Description |
 |---|---|---|
-| `type` | `"shell"` | `"shell"`: the shell's own floor and lid. |
+| `type` | `"shell"` | `"shell"`: the shell's own floor and lid. `"caps"`: villa's square end caps, sized to the larger of the case and the mount disc. Bolts through tabs on both sides clamp the halves together; the bottom cap has counterbored mounting holes and an engraved arrow; the top cap carries the label. |
+| `cap_height` | `10.0` | Cap thickness. Also the width of the bolt tabs. |
+| `corner_fillet` | `6.25` | Radius of the caps' corners. |
+| `bolt_hole_diameter` | `5.0` | Clamping bolt clearance hole (M4, loose). |
+| `bolt_counterbore_diameter` | `8.0` | Bolt head counterbore, on the +Y face of each tab. |
+| `bolt_counterbore_depth` | `2.0` | |
+| `nut_diameter` | `9.0` | Hex nut pocket, across corners, on the -Y face of each tab. |
+| `nut_depth` | `3.5` | |
+| `mount_hole_spacing` | `50.0` | Mounting holes in the bottom cap at (±spacing, ±spacing). |
+| `mount_hole_diameter` | `6.8` | Mounting bolt clearance hole (M6). |
+| `mount_counterbore_diameter` | `10.5` | Counterbored from the inside face of the bottom cap. |
+| `mount_counterbore_depth` | `5.0` | |
+
+The `cap_*`, `bolt_*`, `nut_*`, and `mount_*` keys only apply to caps.
 
 ## `[mount]`
 
@@ -113,7 +149,7 @@ The mount that attaches the left half to the scanner.
 
 | Key | Default | Description |
 |---|---|---|
-| `type` | `"generic-112.5"` | `"generic-112.5"` or `"generic-65"`: the Generic Mount Disc of that diameter, matching `OpenSCAD/Generic Mount Disc*.scad`. |
+| `type` | `"generic-112.5"` | `"generic-112.5"` or `"generic-65"`: the Generic Mount Disc of that diameter, matching `OpenSCAD/Generic Mount Disc*.scad`, with an orientation notch on its rim. `"kinematic"`: villa's 112.5 × 10 mm disc with three V-slots for a kinematic mount; the right half's side of its top is lowered 0.5 mm so the right half doesn't bind on it. `"none"`: no mount. |
 
 ## `[nubs]`
 
@@ -146,9 +182,12 @@ left half, the floor holes go through the mount disc as well.
 
 ## `[label]`
 
-Engraved text on the bottom of the mount disc (left half) and the bottom of
-the shell (right half), mirrored so it reads correctly from below. It is also
-engraved on the stand's back plate, on the face toward the case.
+With shell ends, the label is engraved on the bottom of the mount disc (left
+half) and the bottom of the shell (right half), mirrored so it reads
+correctly from below. It is also engraved on the stand's back plate, on the
+face toward the case. With caps it goes on the top cap in upstream's layout:
+`line1` once on each half, `line2`, and a generated `<lining D> x <cavity H>`
+line.
 
 | Key | Default | Description |
 |---|---|---|
@@ -174,9 +213,11 @@ involved.
 
 | Rule | Why |
 |---|---|
+| `ends.type = "shell"` requires a shell | The floor and lid are part of the shell. |
 | `shell.marker_rings` requires `shell.type = "honeycomb"` | The rings fill bands of the honeycomb. |
 | `shell.open_top` requires `ends.type = "shell"` | It cuts away the shell's lid. |
-| `stand.enabled` requires a `generic-*` mount | The cradle is shaped around the Generic Mount Disc and its notch. |
+| `escape_holes` require a shell | They sit in the gap between the lining and the shell. |
+| `stand.enabled` requires a `generic-*` mount and `ends.type = "shell"` | The cradle is shaped around the Generic Mount Disc, its notch, and the round shell. |
 
 ## How the dimensions stack up
 
@@ -190,7 +231,11 @@ case diameter     = shell inner diam. + 2 wall_thickness
 
 case height = floor + bottom_buffer
             + wall_thickness + (h + 2 lining_offset) + wall_thickness
-            + top_buffer + wall_thickness (lid)
+            + top_buffer + lid
 ```
+
+The floor is `max(2, wall_thickness)` and the lid is `wall_thickness`; with
+caps both are `cap_height`. Without a shell, the case diameter is the
+lining diameter.
 
 `scrollcase build` prints the scroll, lining, shell, and case sizes.

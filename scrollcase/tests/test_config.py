@@ -50,6 +50,11 @@ def test_unknown_keys_and_styles_are_rejected():
         ({"shell": {"type": "lattice"}}, "shell.type"),
         ({"mount": {"type": "generic-100"}}, "mount.type"),
         ({"shell": {"type": "solid"}}, "marker_rings"),
+        ({"shell": {"type": "none", "marker_rings": False}}, "floor and lid"),
+        ({"style": "villa.2026-10", "escape_holes": {"enabled": True}}, "escape_holes"),
+        ({"style": "villa.2026-10", "stand": {"enabled": True}}, "generic mount"),
+        ({"ends": {"type": "caps"}, "shell": {"open_top": True}}, "open_top"),
+        ({"ends": {"type": "caps"}}, "stand requires ends.type"),
     ],
 )
 def test_invalid_combinations_are_rejected(data, message):
@@ -75,3 +80,14 @@ def test_layout_stacks_up():
         cavity_top + cfg.wall_thickness + cfg.top_buffer + cfg.wall_thickness
     )
     assert L.scroll_z == L.cavity_z + cfg.lining_offset
+
+
+def test_villa_preset_layout_matches_upstream():
+    """Upstream's stack-up: 3mm margins, 10mm caps, curve ending at the cavity."""
+    cfg = config_from_dict({"style": "villa.2026-10"})
+    L = Layout.from_config(cfg, scroll_radius=38, scroll_height=155)
+    # Upstream cylinder_height = h + 2 offset + 2 wall + lower + upper margins
+    assert L.inner_height == 155 + 4 + 4 + 3 + 3
+    assert L.outer_height == L.inner_height + 2 * 10
+    assert L.split_span == L.cavity_diameter / 2
+    assert L.cap_half_width == 112.5 / 2

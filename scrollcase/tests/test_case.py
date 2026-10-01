@@ -47,3 +47,16 @@ def test_mount_disc_matches_openscad_dimensions(name):
     assert result["xmax"] == pytest.approx(r, abs=1e-6)
     # The notch hole ends are flat while the rim is curved, hence the tolerance
     assert result["volume"] == pytest.approx(expected, rel=2e-4)
+
+
+def test_mount_diameters_match_mount_discs():
+    from scrollcase.config import MOUNT_DIAMETERS
+
+    result = run_brep(
+        """
+        import json
+        from scrollcase.mount_disc import MOUNT_DISCS
+        print(json.dumps({k: d.diameter for k, d in MOUNT_DISCS.items()}))
+        """
+    )
+    assert result == {k: v for k, v in MOUNT_DIAMETERS.items() if k != "none"}

@@ -95,8 +95,12 @@ def main(argv=None) -> int:
     L = result.layout
     print(f"Scroll: {2 * L.scroll_radius:.2f} D x {L.scroll_height:.2f} H mm")
     print(f"Lining: {L.lining_diameter:.2f} D (outer) mm")
-    print(f"Shell:  {L.inner_diameter:.2f} D (inner)")
-    print(f"Case:   {L.outer_diameter:.2f} D x {L.outer_height:.2f} H mm")
+    if cfg.shell.type != "none":
+        print(f"Shell:  {L.inner_diameter:.2f} D (inner), {L.outer_diameter:.2f} D (outer) mm")
+    if cfg.ends.type == "caps":
+        side = 2 * L.cap_half_width
+        print(f"Caps:   {side:.2f} x {side:.2f} mm, plus bolt tabs")
+    print(f"Height: {L.outer_height:.2f} mm")
     for path in result.outputs.values():
         print(f"Wrote {path}")
     return 0
