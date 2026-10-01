@@ -1,5 +1,7 @@
 use <cylinder_outer.scad>
 
+// Mirrored in scrollcase/src/scrollcase/mount_disc.py; keep in sync
+
 // Globals (in mm)
 function GenericMountDisc_Diameter() = 65;
 function GenericMountDisc_Thickness() = 12.5;
