@@ -6,12 +6,14 @@ from conftest import inside, is_closed
 from scrollcase import lining
 from scrollcase.config import CaseConfig, Layout
 from scrollcase.smallest_circle import smallest_enclosing_circle
+from scrollcase.split import profile_for
 
 
-@pytest.fixture(scope="module")
-def built(undercut_scroll):
+@pytest.fixture(scope="module", params=["plane", "curve"])
+def built(request, undercut_scroll):
     cfg = CaseConfig()
     cfg.scroll.mesh = str(undercut_scroll)
+    cfg.split.type = request.param
     scroll, radius, height = lining.prepare_scroll(cfg)
     layout = Layout.from_config(cfg, radius, height)
     return cfg, layout, scroll, lining.build_lining(scroll, cfg, layout)
@@ -28,17 +30,19 @@ def test_scroll_is_aligned_to_case_axis(built):
 
 
 def test_halves_stay_on_their_side(built):
-    _, _, _, halves = built
+    cfg, layout, _, halves = built
+    profile = profile_for(cfg, layout)
     for side, sign in (("left", -1), ("right", 1)):
         half = halves[side]
         assert is_closed(half.cavity) and is_closed(half.wall)
-        wall_y = mn.getNumpyVerts(half.wall)[:, 1] * sign
-        assert wall_y.min() >= -1e-3
+        verts = mn.getNumpyVerts(half.wall)
+        assert ((verts[:, 1] - profile.f(verts[:, 0])) * sign).min() >= -1e-3
 
 
 def test_scroll_slides_out_toward_split(built):
-    """Every point of the scroll can move straight to the split plane unobstructed."""
-    _, layout, scroll, halves = built
+    """Every point of the scroll can move straight to the split unobstructed."""
+    cfg, layout, scroll, halves = built
+    profile = profile_for(cfg, layout)
     placed = lining.place_scroll(scroll, layout)
     r = layout.scroll_radius
     grid = [
@@ -50,10 +54,13 @@ def test_scroll_slides_out_toward_split(built):
     sample = np.array([p for p in grid if inside(placed, p)])
     assert len(sample) > 50
 
+    split_y = profile.f(sample[:, 0])
     for side, toward in (("left", 1), ("right", -1)):
         cavity = halves[side].cavity
-        for p in sample[sample[:, 1] * toward < 0]:
-            for y in np.arange(p[1], 0, toward * 0.5):
+        on_side = (sample[:, 1] - split_y) * toward < 0
+        assert on_side.sum() > 10
+        for p, fy in zip(sample[on_side], split_y[on_side], strict=True):
+            for y in np.arange(p[1], fy, toward * 0.5):
                 assert inside(cavity, (p[0], y, p[2])), (side, p, y)
 
 

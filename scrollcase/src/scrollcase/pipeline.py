@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import lining
-from .config import CaseConfig, Layout, validate
+from .config import CaseConfig, Layout, validate, validate_layout
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +81,7 @@ def build(
 
     scroll, radius, height = lining.prepare_scroll(cfg)
     layout = Layout.from_config(cfg, radius, height)
+    validate_layout(cfg, layout)
     logger.info("Case outer diameter %.2f, height %.2f", layout.outer_diameter, layout.outer_height)
 
     def path(key: str) -> Path:

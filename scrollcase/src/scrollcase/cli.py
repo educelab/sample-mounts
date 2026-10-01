@@ -22,6 +22,13 @@ def _toml_value(value) -> str:
     return repr(value)
 
 
+# Example values shown for keys that are unset by default
+_UNSET_HINTS = {
+    "mesh": '"path/to/mesh.ply"',
+    "amplitude": "10.0  # default: 0.2 x (span + wall_thickness)",
+}
+
+
 def config_toml(cfg: CaseConfig) -> str:
     """A fully resolved config as TOML. Unset optional values are commented out."""
     lines: list[str] = []
@@ -32,8 +39,7 @@ def config_toml(cfg: CaseConfig) -> str:
             if isinstance(value, dict):
                 nested.append((key, value))
             elif value is None:
-                hint = '"path/to/mesh.ply"' if key == "mesh" else "..."
-                lines.append(f"# {key} = {hint}")
+                lines.append(f"# {key} = {_UNSET_HINTS.get(key, '...')}")
             else:
                 lines.append(f"{key} = {_toml_value(value)}")
         for key, value in nested:

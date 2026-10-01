@@ -22,6 +22,8 @@ generic_height = 155.0
 
 [split]
 type = "plane"
+# amplitude = 10.0  # default: 0.2 x (span + wall_thickness)
+flip = false
 
 [shell]
 type = "honeycomb"

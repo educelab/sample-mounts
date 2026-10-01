@@ -4,6 +4,7 @@ from conftest import inside, is_closed
 
 from scrollcase.config import config_from_dict
 from scrollcase.pipeline import build
+from scrollcase.split import profile_for
 
 
 def _bounds(mesh):
@@ -80,3 +81,52 @@ def test_generic_open_cradle(tmp_path):
     # The upper shell is scooped away, so the shell wall near the top is gone
     L = result.layout
     assert not inside(mesh, (0, -(L.outer_diameter / 2 - L.wall / 2), L.outer_height - 1))
+
+
+@pytest.fixture(scope="module")
+def curved_case(tmp_path_factory):
+    cfg = config_from_dict(
+        {
+            "name": "c",
+            "split": {"type": "curve"},
+            "nubs": {"positions": [[-44, 20], [44, 150]]},
+            "escape_holes": {"enabled": True},
+        }
+    )
+    result = build(cfg, tmp_path_factory.mktemp("curved"), parts=("left", "right"))
+    meshes = {k: mm.loadMesh(p) for k, p in result.outputs.items()}
+    return cfg, result.layout, meshes
+
+
+def test_curved_halves_are_closed_and_follow_the_curve(curved_case):
+    cfg, L, meshes = curved_case
+    profile = profile_for(cfg, L)
+    for side in ("left", "right"):
+        assert is_closed(meshes[side]), side
+        assert len(mm.getAllComponents(meshes[side])) == 1, side
+
+    # The divider band sits on both sides of the curve, between lining and shell
+    z = L.scroll_z + L.scroll_height / 2
+    for x in (-43.0, 43.0):
+        fy = float(profile.f(x))
+        assert inside(meshes["left"], (x, fy - L.wall / 2, z))
+        assert inside(meshes["right"], (x, fy + L.wall / 2, z))
+        assert not inside(meshes["left"], (x, fy + L.wall / 2, z))
+    # The right half reaches below y = 0 where the curve dips
+    assert _bounds(meshes["right"])[0][1] < -5
+
+
+def test_nubs_follow_the_curve(curved_case):
+    cfg, L, meshes = curved_case
+    profile = profile_for(cfg, L)
+    for x, z in cfg.nubs.positions:
+        xn, fy = -x, float(profile.f(-x))
+        assert inside(meshes["left"], (xn, fy + 1.0, z))
+        assert not inside(meshes["right"], (xn, fy + 1.0, z))
+        assert inside(meshes["right"], (xn, fy + 3.2, z))
+
+
+def test_nubs_off_the_divider_are_rejected(tmp_path):
+    cfg = config_from_dict({"nubs": {"positions": [[-30, 20]]}})
+    with pytest.raises(ValueError, match=r"nubs.positions\[0\]"):
+        build(cfg, tmp_path, parts=("left",))

@@ -65,11 +65,18 @@ The input mesh and how it is prepared and placed.
 
 ## `[split]`
 
-The surface the two halves separate along.
+The surface the two halves separate along. Every split is a profile
+y = f(x) extruded along Z, so from anywhere in a half the scroll can move
+straight along Y to the split; overhang removal relies on this.
 
 | Key | Default | Description |
 |---|---|---|
-| `type` | `"plane"` | `"plane"`: the XZ plane. |
+| `type` | `"plane"` | `"plane"`: the XZ plane. `"curve"`: ScrollPrize/villa's S-shaped split, made of two arcs, spanning the whole case out to the middle of the shell wall. A curved seam avoids a flat interface lined up with the beam, which shows up as a streak in CT. |
+| `amplitude` | unset | How far the S bulges from the XZ plane. Unset means 0.2 × (span + `wall_thickness`), as upstream, where the span is the radius at the middle of the shell wall. Too large an amplitude is an error. |
+| `flip` | `false` | Mirrors the S. |
+
+With a curved split the divider follows the curve at constant thickness,
+and nubs move along Y to sit on it.
 
 ## `[shell]`
 
@@ -111,9 +118,11 @@ The mount that attaches the left half to the scanner.
 ## `[nubs]`
 
 Alignment nubs on the left half's split face, with matching sockets on the
-right half. Place them in the divider wall: farther from the axis than half
-the lining's outer diameter, and closer than half the shell's inner diameter.
-`scrollcase build` prints both diameters.
+right half. Place them on the divider, outside the cavity and inside the
+case: the build fails, naming the nub, if one isn't. `scrollcase build`
+prints the lining and shell diameters. On a curved split each nub sits at
+(x, f(x), z), still pointing along Y, with its base sunk into the divider so
+it stays attached where the surface slopes.
 
 | Key | Default | Description |
 |---|---|---|

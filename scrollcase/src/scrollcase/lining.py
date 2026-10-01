@@ -17,6 +17,7 @@ from scipy.spatial.transform import Rotation
 from . import alignment
 from .config import CaseConfig, Layout, ScrollConfig
 from .smallest_circle import smallest_enclosing_circle
+from .split import Profile, profile_for
 
 logger = logging.getLogger(__name__)
 
@@ -81,18 +82,51 @@ def _boolean(a: mm.Mesh, b: mm.Mesh, op) -> mm.Mesh:
     return result.mesh
 
 
-def _half_space(side: str, y_offset: float = 0.0) -> mm.Mesh:
-    """Box covering one side of the XZ split plane, shifted by `y_offset` in +Y."""
-    y0 = -_BIG + y_offset if side == "left" else y_offset
-    return mm.makeCube(mm.Vector3f(2 * _BIG, _BIG, 2 * _BIG), mm.Vector3f(-_BIG, y0, -_BIG))
+def _prism(xs: np.ndarray, y_lo: np.ndarray, y_hi: np.ndarray, z0: float, z1: float) -> mm.Mesh:
+    """Closed prism over the region y_lo(x) <= y <= y_hi(x), z0 <= z <= z1."""
+    n = len(xs)
+    rings = []
+    for z in (z0, z1):
+        rings.append(np.c_[xs, y_lo, np.full(n, z)])
+        rings.append(np.c_[xs, y_hi, np.full(n, z)])
+    verts = np.vstack(rings).astype(np.float32)
+    lo0, hi0, lo1, hi1 = (np.arange(n) + k * n for k in range(4))
+
+    faces = []
+    for i in range(n - 1):
+        j = i + 1
+        faces += [(lo0[i], hi0[j], lo0[j]), (lo0[i], hi0[i], hi0[j])]  # bottom
+        faces += [(lo1[i], lo1[j], hi1[j]), (lo1[i], hi1[j], hi1[i])]  # top
+        faces += [(lo0[i], lo0[j], lo1[j]), (lo0[i], lo1[j], lo1[i])]  # y_lo side
+        faces += [(hi0[i], hi1[j], hi0[j]), (hi0[i], hi1[i], hi1[j])]  # y_hi side
+    for i, sign in ((0, 1), (n - 1, -1)):  # x ends
+        quad = [(lo0[i], hi1[i], hi0[i]), (lo0[i], lo1[i], hi1[i])]
+        faces += quad if sign > 0 else [(a, c, b) for a, b, c in quad]
+    mesh = mn.meshFromFacesVerts(np.array(faces, dtype=np.int32), verts)
+    if mesh.volume() < 0:
+        mesh.topology.flipOrientation()
+    return mesh
+
+
+def _half_space(profile: Profile, side: str, y_offset: float = 0.0) -> mm.Mesh:
+    """Solid on one side of the split surface, shifted by `y_offset` in +Y."""
+    if not profile.arcs:
+        y0 = -_BIG + y_offset if side == "left" else y_offset
+        return mm.makeCube(mm.Vector3f(2 * _BIG, _BIG, 2 * _BIG), mm.Vector3f(-_BIG, y0, -_BIG))
+    xs = profile.sample_x(_BIG)
+    surface = profile.f(xs) + y_offset
+    far = np.full_like(xs, -_BIG if side == "left" else _BIG)
+    lo, hi = (far, surface) if side == "left" else (surface, far)
+    return _prism(xs, lo, hi, -_BIG, _BIG)
 
 
 def _toward_split(side: str) -> float:
     return 1.0 if side == "left" else -1.0
 
 
-def _clip(mesh: mm.Mesh, side: str, y_offset: float = 0.0) -> mm.Mesh:
-    return _boolean(mesh, _half_space(side, y_offset), mm.BooleanOperation.Intersection)
+def _clip(mesh: mm.Mesh, profile: Profile, side: str, y_offset: float = 0.0) -> mm.Mesh:
+    clip = _half_space(profile, side, y_offset)
+    return _boolean(mesh, clip, mm.BooleanOperation.Intersection)
 
 
 def _smooth(mesh: mm.Mesh, cfg: ScrollConfig, voxel_size: float) -> mm.Mesh:
@@ -181,27 +215,28 @@ def build_lining(scroll: mm.Mesh, cfg: CaseConfig, layout: Layout) -> dict[str, 
     """Build each half's cavity and lining wall, in case coordinates.
 
     The cavity is the scroll offset by `lining_offset`. With overhang removal,
-    each half's cavity is extruded toward the split plane so the scroll can be
-    lowered straight in, then the wall is grown around that extruded cavity.
+    each half's cavity is extruded along Y toward the split so the scroll can
+    be lowered straight in, then the wall is grown around that extruded cavity.
     """
+    profile = profile_for(cfg, layout)
     cavity = _offset(place_scroll(scroll, layout), cfg.lining_offset, cfg.voxel_size)
     max_error = cfg.voxel_size * _DECIMATE_VOXEL_FRACTION
 
     halves = {}
     for side in SIDES:
         toward = _toward_split(side)
-        half = _clip(cavity, side, y_offset=toward * _SPLIT_OVERCUT)
+        half = _clip(cavity, profile, side, y_offset=toward * _SPLIT_OVERCUT)
         if cfg.overhang_removal:
             # Undercuts are filled in the direction opposite `upDirection`
             params = mm.FixUndercuts.FixParams()
             params.findParameters.upDirection = mm.Vector3f(0, -toward, 0)
             params.voxelSize = cfg.voxel_size
             mm.FixUndercuts.fix(half, params)
-            half = _clip(half, side, y_offset=toward * _SPLIT_OVERCUT)
+            half = _clip(half, profile, side, y_offset=toward * _SPLIT_OVERCUT)
         _decimate(half, max_error)
 
         wall = _offset(half, cfg.wall_thickness, cfg.voxel_size)
-        wall = _clip(wall, side, y_offset=-toward * _SPLIT_INSET)
+        wall = _clip(wall, profile, side, y_offset=-toward * _SPLIT_INSET)
         _decimate(wall, max_error)
         halves[side] = LiningHalf(cavity=half, wall=wall)
     return halves

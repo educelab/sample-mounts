@@ -8,18 +8,26 @@ import math
 
 from build123d import (
     Align,
+    Kind,
+    Line,
     Part,
     Plane,
     Polygon,
+    Side,
     Text,
+    ThreePointArc,
     Torus,
+    Wire,
     extrude,
+    make_face,
     mirror,
+    offset,
 )
 
-from .config import CaseConfig, Layout
+from .config import NUB_ROTATIONS, CaseConfig, Layout, nub_extent
 from .mount_disc import MOUNT_DISCS, MountDisc
 from .scad import cube, cylinder, rotate, scaled, sphere, translate
+from .split import Profile, profile_for
 
 _BIG = 5000.0
 # Added depth so engraved features don't leave coincident faces
@@ -27,13 +35,41 @@ _LABEL_EXTRA = 0.1
 # Escape holes this close to tangent with a shell surface get nudged inward
 _TANGENT_TOL = 0.05
 _MARKER_BAND_HEIGHT = 3
-# Nubs alternate between square and diamond orientations
-_NUB_ROTATIONS = (0, 45)
 
 
-def _half_space(side: str) -> Part:
-    y = -_BIG if side == "left" else 0
-    return translate([-_BIG / 2, y, -_BIG / 2], cube([_BIG, _BIG, _BIG]))
+def _profile_edges(profile: Profile, extent: float) -> list:
+    """Edges along the split profile from x = -extent to +extent."""
+    if not profile.arcs:
+        return [Line((-extent, 0), (extent, 0))]
+    edges = [ThreePointArc(a.start, a.mid, a.end) for a in profile.arcs]
+    if extent > profile.span:
+        edges = [
+            Line((-extent, 0), (-profile.span, 0)),
+            *edges,
+            Line((profile.span, 0), (extent, 0)),
+        ]
+    return edges
+
+
+def _half_space(profile: Profile, side: str) -> Part:
+    if not profile.arcs:
+        y = -_BIG if side == "left" else 0
+        return translate([-_BIG / 2, y, -_BIG / 2], cube([_BIG, _BIG, _BIG]))
+    y = -_BIG if side == "left" else _BIG
+    edges = _profile_edges(profile, _BIG) + [
+        Line((_BIG, 0), (_BIG, y)),
+        Line((_BIG, y), (-_BIG, y)),
+        Line((-_BIG, y), (-_BIG, 0)),
+    ]
+    return translate([0, 0, -_BIG / 2], extrude(make_face(edges), amount=_BIG))
+
+
+def _band(profile: Profile, half_width: float, extent: float, h: float) -> Part:
+    """Wall of constant thickness along the profile, with round ends."""
+    outline = offset(
+        Wire(_profile_edges(profile, extent)), amount=half_width, side=Side.BOTH, kind=Kind.ARC
+    )
+    return extrude(make_face(outline), amount=h)
 
 
 def _prism(h: float, d: float, edges: int) -> Part:
@@ -92,9 +128,15 @@ def _honeycomb_cutter(cfg: CaseConfig, L: Layout) -> Part:
     if cfg.shell.marker_rings:
         for z in marker_ring_heights(L):
             keep -= translate([0, 0, z], cylinder(_MARKER_BAND_HEIGHT, d, center=True))
-    keep -= translate(
-        [0, 0, L.outer_height / 2], cube([2 * d, 2 * L.wall, 2 * L.outer_height], center=True)
-    )
+    profile = profile_for(cfg, L)
+    if profile.arcs:
+        keep -= translate(
+            [0, 0, -L.outer_height / 2], _band(profile, L.wall, d, 2 * L.outer_height)
+        )
+    else:
+        keep -= translate(
+            [0, 0, L.outer_height / 2], cube([2 * d, 2 * L.wall, 2 * L.outer_height], center=True)
+        )
     holes = _honeycomb_holes(cfg, L)
     return holes[0].fuse(*holes[1:]) & keep
 
@@ -121,11 +163,15 @@ def shell(cfg: CaseConfig, L: Layout) -> Part:
     return body
 
 
-def divider(L: Layout) -> Part:
-    """Wall across the split plane. It ends mid-shell so no faces coincide."""
-    w, t, h = L.outer_diameter, 2 * L.wall, L.outer_height
+def divider(cfg: CaseConfig, L: Layout) -> Part:
+    """Wall along the split. It ends mid-shell so no faces coincide."""
+    profile = profile_for(cfg, L)
+    h, mid = L.outer_height, (L.inner_diameter + L.outer_diameter) / 4
+    if profile.arcs:
+        return _band(profile, L.wall, profile.span, h) & cylinder(h, mid)
+    w, t = L.outer_diameter, 2 * L.wall
     slab = translate([-w / 2, -t / 2, 0], cube([w, t, h]))
-    return slab & cylinder(h, (L.inner_diameter + L.outer_diameter) / 4)
+    return slab & cylinder(h, mid)
 
 
 def label(cfg: CaseConfig) -> Part | None:
@@ -172,19 +218,34 @@ def _escape_holes(cfg: CaseConfig, L: Layout, disc: MountDisc, side: str) -> lis
     return [translate([sx * ex, ey, 0], h) for sx in (-1, 1) for h in (bottom, top)]
 
 
-def _nub_box(size: float, depth: float) -> Part:
-    return translate([0, depth / 2, 0], cube([size, depth, size], center=True))
+def _nub_box(size: float, depth: float, sink: float = 0.0) -> Part:
+    """Box standing `depth` proud of the split, extending `sink` below it."""
+    return translate([0, (depth - sink) / 2, 0], cube([size, depth + sink, size], center=True))
+
+
+def _nub_anchors(cfg: CaseConfig, L: Layout):
+    """Each nub's position on the split surface and how far to sink its base.
+
+    On a sloped split the base sinks far enough to stay attached across its
+    width, but no deeper than the divider is thick.
+    """
+    profile = profile_for(cfg, L)
+    for i, (x, z) in enumerate(cfg.nubs.positions):
+        xn = -x
+        sink = min(abs(profile.slope(xn)) * nub_extent(cfg, i), L.wall)
+        yield i, (xn, float(profile.f(xn)), z), sink
 
 
 def left_body(cfg: CaseConfig, L: Layout) -> Part:
     disc = MOUNT_DISCS[cfg.mount.type]
-    body = (shell(cfg, L) + divider(L)) & _half_space("left")
+    profile = profile_for(cfg, L)
+    body = (shell(cfg, L) + divider(cfg, L)) & _half_space(profile, "left")
     body += disc.solid()
 
     n = cfg.nubs
-    for i, (x, z) in enumerate(n.positions):
-        nub = rotate([0, _NUB_ROTATIONS[i % 2], 0], _nub_box(n.size, n.depth))
-        body += translate([-x, 0, z], nub)
+    for i, pos, sink in _nub_anchors(cfg, L):
+        nub = rotate([0, NUB_ROTATIONS[i % 2], 0], _nub_box(n.size, n.depth, sink))
+        body += translate(pos, nub)
 
     if cfg.escape_holes.enabled:
         body = body.cut(*_escape_holes(cfg, L, disc, "left"))
@@ -197,17 +258,22 @@ def left_body(cfg: CaseConfig, L: Layout) -> Part:
 
 def right_body(cfg: CaseConfig, L: Layout) -> Part:
     disc = MOUNT_DISCS[cfg.mount.type]
-    body = (shell(cfg, L) + divider(L)) & _half_space("right")
+    profile = profile_for(cfg, L)
+    body = (shell(cfg, L) + divider(cfg, L)) & _half_space(profile, "right")
 
     n = cfg.nubs
     socket = n.size + 2 * n.margin
     socket_depth = n.depth + 2 * n.margin
-    for x, z in n.positions:
-        housing = _nub_box(socket + L.wall, n.depth + L.wall)
-        body += translate([-x, 0, z], housing)
-    for i, (x, z) in enumerate(n.positions):
-        hollow = scaled([1.01] * 3, _nub_box(socket, socket_depth))
-        body -= translate([-x, 0, z], rotate([0, _NUB_ROTATIONS[i % 2], 0], hollow))
+    anchors = list(_nub_anchors(cfg, L))
+    for _, pos, sink in anchors:
+        housing = translate(pos, _nub_box(socket + L.wall, n.depth + L.wall, sink))
+        if sink > 0:
+            # Keep the housing from crossing the split into the left half
+            housing &= _half_space(profile, "right")
+        body += housing
+    for i, pos, sink in anchors:
+        hollow = scaled([1.01] * 3, _nub_box(socket, socket_depth, sink))
+        body -= translate(pos, rotate([0, NUB_ROTATIONS[i % 2], 0], hollow))
 
     if cfg.escape_holes.enabled:
         body = body.cut(*_escape_holes(cfg, L, disc, "right"))

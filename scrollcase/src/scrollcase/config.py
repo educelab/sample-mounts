@@ -9,6 +9,7 @@ the user's values. Released presets never change; see `PRESETS`.
 
 import copy
 import dataclasses
+import math
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -39,9 +40,15 @@ class ScrollConfig:
 
 @dataclass
 class SplitConfig:
-    """Surface the halves separate along, as a profile y = f(x) extruded in Z."""
+    """Surface the halves separate along, as a profile y = f(x) extruded in Z.
+
+    "curve" is villa's S-shaped split spanning the whole case. `amplitude`
+    defaults to 0.2 x (span + wall_thickness), as upstream; `flip` mirrors it.
+    """
 
     type: str = "plane"
+    amplitude: float | None = None
+    flip: bool = False
 
 
 @dataclass
@@ -132,13 +139,14 @@ class CaseConfig:
 
 
 # Released presets are frozen by tests/presets/<style>.toml. To change one,
-# add a new version instead. educelab.v1 is the dataclass defaults.
+# add a new version instead. educelab.v1 is the dataclass defaults, so new
+# keys must default to behavior that leaves its geometry unchanged.
 PRESETS: dict[str, dict[str, Any]] = {
     "educelab.v1": {},
 }
 
 _CHOICES = {
-    ("split", "type"): ("plane",),
+    ("split", "type"): ("plane", "curve"),
     ("shell", "type"): ("honeycomb", "solid"),
     ("ends", "type"): ("shell",),
     ("mount", "type"): ("generic-112.5", "generic-65"),
@@ -236,6 +244,7 @@ class Layout:
     outer_height: float
     cavity_z: float
     scroll_z: float
+    split_span: float
 
     @classmethod
     def from_config(cls, cfg: CaseConfig, scroll_radius: float, scroll_height: float):
@@ -245,6 +254,7 @@ class Layout:
         cavity_height = scroll_height + 2 * cfg.lining_offset
         lining_diameter = cavity_diameter + 2 * wall
         inner_diameter = lining_diameter + 2 * cfg.internal_gap
+        outer_diameter = inner_diameter + 2 * wall
         inner_height = cfg.bottom_buffer + cavity_height + 2 * wall + cfg.top_buffer
         cavity_z = bottom_wall + cfg.bottom_buffer + wall
         return cls(
@@ -259,8 +269,33 @@ class Layout:
             inner_diameter=inner_diameter,
             inner_z=bottom_wall,
             inner_height=inner_height,
-            outer_diameter=inner_diameter + 2 * wall,
+            outer_diameter=outer_diameter,
             outer_height=inner_height + bottom_wall + wall,
             cavity_z=cavity_z,
             scroll_z=cavity_z + cfg.lining_offset,
+            # The split curve runs to the middle of the shell wall
+            split_span=(inner_diameter + outer_diameter) / 4,
         )
+
+
+NUB_ROTATIONS = (0, 45)
+
+
+def nub_extent(cfg: CaseConfig, index: int) -> float:
+    """Half-width of a nub in X: square nubs, then 45-degree diamonds."""
+    half = cfg.nubs.size / 2
+    return half * math.sqrt(2) if NUB_ROTATIONS[index % 2] else half
+
+
+def validate_layout(cfg: CaseConfig, L: Layout) -> None:
+    """Checks that need the fitted scroll size, run once the layout is known."""
+    for i, (x, z) in enumerate(cfg.nubs.positions):
+        e = nub_extent(cfg, i)
+        r = abs(x)
+        if r - e < L.cavity_diameter / 2 or r + e > L.outer_diameter / 2:
+            raise ValueError(
+                f"nubs.positions[{i}] = [{x}, {z}] is off the divider: |x| must be in "
+                f"[{L.cavity_diameter / 2 + e:.2f}, {L.outer_diameter / 2 - e:.2f}]"
+            )
+        if not L.inner_z + e <= z <= L.inner_z + L.inner_height - e:
+            raise ValueError(f"nubs.positions[{i}] = [{x}, {z}] is outside the case height")
