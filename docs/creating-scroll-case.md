@@ -24,7 +24,7 @@ honeycomb case: left half (with mount disc), right half, and assembly stand.
    ```
 
    Set `name`, `scroll.mesh` (relative to the config file), and the label.
-   See the docstrings in `src/scrollcase/config.py` for every option.
+   Every option is described in [the config reference](scroll-case-config.md).
 
 3. **Generate a draft.**
 
@@ -38,7 +38,7 @@ honeycomb case: left half (with mount disc), right half, and assembly stand.
 
 4. **Adjust.**
    - The scroll is auto-aligned to the case axis, with its widest direction
-     in the split plane. Use `scroll.rotate` (degrees, XYZ) to override it,
+     in the split plane. Use `scroll.rotate` (degrees, XYZ) to adjust it,
      e.g. to put a fragile edge away from the split.
    - Add `nubs.positions` as `[x, z]` pairs. Place them in the divider wall
      between the lining and the shell (the build prints both diameters).

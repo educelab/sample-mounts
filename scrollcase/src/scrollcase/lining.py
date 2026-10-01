@@ -11,10 +11,12 @@ from pathlib import Path
 import meshlib.mrmeshnumpy as mn
 import meshlib.mrmeshpy as mm
 import numpy as np
+from scipy.spatial import ConvexHull
 from scipy.spatial.transform import Rotation
 
 from . import alignment
 from .config import CaseConfig, Layout, ScrollConfig
+from .smallest_circle import smallest_enclosing_circle
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +123,13 @@ def _align_wide_axis_to_x(mesh: mm.Mesh) -> None:
     _transform(mesh, rotation, [0, 0, 0])
 
 
+def _center_on_axis(mesh: mm.Mesh) -> None:
+    """Move the scroll so its smallest enclosing circle is centered on Z."""
+    xy = _vertices(mesh)[:, :2]
+    center, _ = smallest_enclosing_circle(xy[ConvexHull(xy).vertices])
+    _translate(mesh, [-center[0], -center[1], 0])
+
+
 def prepare_scroll(cfg: CaseConfig) -> tuple[mm.Mesh, float, float]:
     """Load, clean up, and align the scroll.
 
@@ -154,6 +163,8 @@ def prepare_scroll(cfg: CaseConfig) -> tuple[mm.Mesh, float, float]:
         _transform(
             scroll, Rotation.from_euler("xyz", sc.rotate, degrees=True).as_matrix(), [0, 0, 0]
         )
+    # Re-center after any manual rotation (a no-op after auto-alignment alone)
+    _center_on_axis(scroll)
     if any(sc.translate):
         _translate(scroll, sc.translate)
 

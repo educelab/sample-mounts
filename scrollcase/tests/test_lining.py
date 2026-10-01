@@ -5,6 +5,7 @@ from conftest import inside, is_closed
 
 from scrollcase import lining
 from scrollcase.config import CaseConfig, Layout
+from scrollcase.smallest_circle import smallest_enclosing_circle
 
 
 @pytest.fixture(scope="module")
@@ -69,3 +70,32 @@ def test_overhang_removal_can_be_disabled(undercut_scroll):
         start = (15, -toward * 9, layout.scroll_z + 30)
         ys = np.arange(start[1], 0, toward * 0.5)
         assert any(not inside(cavity, (start[0], y, start[2])) for y in ys), side
+
+
+def _footprint_center(scroll):
+    xy = mn.getNumpyVerts(scroll)[:, :2]
+    return smallest_enclosing_circle(xy)
+
+
+@pytest.mark.parametrize("rotate", [[0, 0, 90], [25, 0, 0], [10, -15, 40]])
+def test_rotation_recenters(undercut_scroll, rotate):
+    cfg = CaseConfig()
+    cfg.scroll.mesh = str(undercut_scroll)
+    cfg.scroll.rotate = rotate
+    scroll, radius, _ = lining.prepare_scroll(cfg)
+    center, enclosing = _footprint_center(scroll)
+    assert np.allclose(center, 0, atol=1e-3)
+    assert radius == pytest.approx(enclosing, abs=1e-3)
+    assert mn.getNumpyVerts(scroll)[:, 2].min() == pytest.approx(0, abs=1e-4)
+
+
+def test_manual_placement_is_centered_and_translate_still_offsets(undercut_scroll):
+    cfg = CaseConfig()
+    cfg.scroll.mesh = str(undercut_scroll)
+    cfg.scroll.auto_align = False
+    cfg.scroll.translate = [5, 0, 0]
+    scroll, radius, _ = lining.prepare_scroll(cfg)
+    center, enclosing = _footprint_center(scroll)
+    assert np.allclose(center, [5, 0], atol=1e-3)
+    # Off-axis by 5mm, so the case radius grows by up to 5mm
+    assert enclosing < radius <= enclosing + 5 + 1e-3

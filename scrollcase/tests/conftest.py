@@ -35,9 +35,10 @@ def undercut_scroll(tmp_path_factory):
     def box(size, corner):
         return mm.makeCube(mm.Vector3f(*size), mm.Vector3f(*corner))
 
-    flange, web, height = (40, 6), (6, 12), 60
+    # The web overlaps the flanges so the union is one solid
+    flange, web, height = (40, 6), (6, 14), 60
     mesh = box((*flange, height), (-20, -12, 0))
-    for part in (box((*flange, height), (-20, 6, 0)), box((*web, height), (-3, -6, 0))):
+    for part in (box((*flange, height), (-20, 6, 0)), box((*web, height), (-3, -7, 0))):
         mesh = mm.boolean(mesh, part, mm.BooleanOperation.Union).mesh
     rot = Rotation.from_euler("xyz", [20, -10, 35], degrees=True).as_matrix()
     rows = [mm.Vector3f(*map(float, row)) for row in rot]

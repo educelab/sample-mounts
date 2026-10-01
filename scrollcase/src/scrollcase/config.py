@@ -16,8 +16,9 @@ class ScrollConfig:
     """Input mesh and how it is cleaned up and placed in the case.
 
     With no `mesh`, a cylinder of `generic_diameter` x `generic_height` is used.
-    `rotate` (degrees, XYZ) and `translate` are applied after auto-alignment;
-    the case is then sized around the result.
+    `rotate` (degrees, XYZ) is applied after auto-alignment, then the scroll is
+    re-centered on the case axis. `translate` is applied last; the case is
+    sized around the result.
     """
 
     mesh: str | None = None

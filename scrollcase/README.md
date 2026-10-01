@@ -3,7 +3,8 @@
 Generates the split honeycomb scroll case (left half with mount disc, right
 half, and stand) around a scroll mesh. See
 [`docs/creating-scroll-case.md`](../docs/creating-scroll-case.md) for the
-workflow.
+workflow and [`docs/scroll-case-config.md`](../docs/scroll-case-config.md)
+for every config option.
 
 ```bash
 uv sync
