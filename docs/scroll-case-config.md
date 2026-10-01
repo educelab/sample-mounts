@@ -39,12 +39,12 @@ type = "kinematic"
 enabled = false
 ```
 
-Known differences from upstream in `villa.2026-10`: the scroll fit uses a
-tighter tolerance (upstream's stops about 1° off-axis and oversizes the
-radius by about 1 mm), the wide-axis rotation normalizes its vector before
-taking the angle, `voxel_size` is absolute (upstream uses 0.4% of the mesh
-diagonal), and `"denoise"` smoothing uses `smoothing_amount` (upstream
-ignores its strength setting).
+`villa.2026-10` reproduces upstream's case bodies exactly; see the
+[comparison](villa-2026-10-comparison.md). The known differences are all in
+the mesh stage: the scroll fit uses a tighter tolerance, the wide-axis
+rotation normalizes its vector before taking the angle, `voxel_size` is
+absolute (upstream uses 0.4% of the mesh diagonal), and `"denoise"`
+smoothing uses `smoothing_amount` (upstream ignores its strength setting).
 
 Released styles never change, so a config rebuilds the same case for as
 long as it names the same style. A design update becomes a new version

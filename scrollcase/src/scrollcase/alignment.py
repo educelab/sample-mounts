@@ -31,8 +31,8 @@ def fit_cylinder(
 
     The axis is found by minimizing the radius of the smallest circle enclosing
     the points projected onto the axis-normal plane, starting from the first
-    principal component. A loose `tol` stops ~1 degree off-axis, which
-    oversizes the radius by about a millimeter on a typical scroll.
+    principal component. A loose `tol` stops short of the minimum: on a test
+    cylinder it oversized the radius by about 1 mm, on real scrolls 0.1-0.2 mm.
 
     Returns:
         A rotation matrix and translation that map points into cylinder
