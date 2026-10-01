@@ -1,0 +1,30 @@
+[project]
+name = "scrollcase"
+version = "0.1.0"
+description = "Split honeycomb scroll case generator for scanner/beamline mounts"
+readme = "README.md"
+license = "AGPL-3.0-only"
+authors = [{ name = "Seth Parker", email = "c.seth.parker@uky.edu" }]
+requires-python = ">=3.11"
+dependencies = [
+    "build123d>=0.9",
+    "meshlib>=3.1",
+    "numpy",
+    "scipy",
+]
+
+[project.scripts]
+scrollcase = "scrollcase.cli:main"
+
+[dependency-groups]
+dev = ["pytest", "trimesh"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100

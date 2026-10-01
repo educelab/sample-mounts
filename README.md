@@ -11,7 +11,11 @@ Predesigned models.
 
 OpenSCAD scripts for generating many of the models.
 
+## scrollcase
+
+Python generator for split scroll cases fit to a scroll mesh. See
+[`docs/creating-scroll-case.md`](docs/creating-scroll-case.md).
+
 ## utils
-Miscellaneous utilities. `OverhangRemover.cpp` implements a version of the 
-overhang removal step from the scroll case generator script, but using IGL 
-directly. It's not particularly faster than using OpenSCAD.
+Miscellaneous utilities. `SpiralLength.cpp` computes the length of an
+Archimedean spiral for use with `Spiral Frame.scad`.

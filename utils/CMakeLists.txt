@@ -18,16 +18,3 @@ if(GSL_FOUND)
     add_executable(spiral-length SpiralLength.cpp)
     target_link_libraries(spiral-length igl GSL::gsl)
 endif()
-
-# Iterative diff
-find_package(CGAL NO_MODULE)
-find_package(Eigen3 3.3 NO_MODULE)
-if(CGAL_FOUND AND Eigen3_FOUND)
-    add_executable(overhang-remover OverhangRemover.cpp)
-    target_include_directories(overhang-remover
-        PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:${INSTALL_INCLUDE_DIR}>
-    )
-    target_link_libraries(overhang-remover igl CGAL::CGAL Eigen3::Eigen)
-endif()

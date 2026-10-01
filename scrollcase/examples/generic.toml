@@ -1,0 +1,25 @@
+# Equivalent of the old GenCase-Generic.sh defaults.
+# Run: scrollcase build -c examples/generic.toml -o out/
+name = "Generic Scroll Case-v3"
+bottom_buffer = 10
+top_buffer = 3
+internal_gap = 4
+outer_cylinder = false
+
+[scroll]
+# mesh = "PHerc-XXXX.ply"   # relative to this file; omit for a generic cylinder
+generic_diameter = 76
+generic_height = 155
+
+[nubs]
+positions = []
+size = 3
+
+[escape_holes]
+enabled = true
+offset = 0
+angle = 45
+
+[label]
+line1 = "GEN CYL"
+line2 = "V3"
