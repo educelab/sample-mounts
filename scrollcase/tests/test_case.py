@@ -20,7 +20,7 @@ def test_rotate_matches_openscad_order():
     assert result[1] == pytest.approx([0, -1, 0], abs=1e-9)
 
 
-@pytest.mark.parametrize("name", ["112.5", "65"])
+@pytest.mark.parametrize("name", ["generic-112.5", "generic-65"])
 def test_mount_disc_matches_openscad_dimensions(name):
     result = run_brep(
         f"""

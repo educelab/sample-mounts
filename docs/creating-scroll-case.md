@@ -20,7 +20,7 @@ honeycomb case: left half (with mount disc), right half, and assembly stand.
 
    ```bash
    cd scrollcase
-   uv run scrollcase defaults > my-scroll.toml
+   uv run scrollcase defaults --style educelab.v1 > my-scroll.toml
    ```
 
    Set `name`, `scroll.mesh` (relative to the config file), and the label.

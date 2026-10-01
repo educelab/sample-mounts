@@ -1,9 +1,13 @@
-"""Case configuration and derived layout.
+"""Case configuration, style presets, and derived layout.
 
 Units are mm. Case coordinates: the case axis is +Z, the shell bottom is Z=0,
 and the halves split on the XZ plane (left is -Y, right is +Y).
+
+A config is resolved as: dataclass defaults, then the `style` preset, then
+the user's values. Released presets never change; see `PRESETS`.
 """
 
+import copy
 import dataclasses
 import tomllib
 from dataclasses import dataclass, field
@@ -34,18 +38,46 @@ class ScrollConfig:
 
 
 @dataclass
+class SplitConfig:
+    """Surface the halves separate along, as a profile y = f(x) extruded in Z."""
+
+    type: str = "plane"
+
+
+@dataclass
 class HoneycombConfig:
-    enabled: bool = True
     hole_edges: int = 6
     columns: int = 12
     spacing: float = 1.5
 
 
 @dataclass
+class ShellConfig:
+    """Outer cylinder around the lining. `open_top` cuts away its upper part."""
+
+    type: str = "honeycomb"  # "honeycomb" or "solid"
+    open_top: bool = False
+    marker_rings: bool = True
+    honeycomb: HoneycombConfig = field(default_factory=HoneycombConfig)
+
+
+@dataclass
+class EndsConfig:
+    """What closes the case top and bottom. "shell" is the shell's floor and lid."""
+
+    type: str = "shell"
+
+
+@dataclass
+class MountConfig:
+    type: str = "generic-112.5"  # "generic-112.5" or "generic-65"
+
+
+@dataclass
 class NubConfig:
     """Alignment nubs on the left half, with matching sockets on the right.
 
-    `positions` are [x, z] pairs on the split plane, in case coordinates.
+    `positions` are [x, z] pairs on the split surface, in case coordinates.
     """
 
     positions: list[list[float]] = field(default_factory=list)
@@ -72,42 +104,108 @@ class LabelConfig:
 
 
 @dataclass
+class StandConfig:
+    enabled: bool = True
+    length_scale: float = 1.0
+
+
+@dataclass
 class CaseConfig:
+    style: str = "educelab.v1"
     name: str = "Scroll Case"
     lining_offset: float = 2.0
     wall_thickness: float = 2.0
     bottom_buffer: float = 5.0
     top_buffer: float = 5.0
     internal_gap: float = 3.0
-    outer_cylinder: bool = True
     overhang_removal: bool = True
-    marker_rings: bool = True
-    mount_disc: str = "112.5"  # "112.5" or "65"
-    stand_length_scale: float = 1.0
     voxel_size: float = 0.4
     scroll: ScrollConfig = field(default_factory=ScrollConfig)
-    honeycomb: HoneycombConfig = field(default_factory=HoneycombConfig)
+    split: SplitConfig = field(default_factory=SplitConfig)
+    shell: ShellConfig = field(default_factory=ShellConfig)
+    ends: EndsConfig = field(default_factory=EndsConfig)
+    mount: MountConfig = field(default_factory=MountConfig)
     nubs: NubConfig = field(default_factory=NubConfig)
     escape_holes: EscapeHoleConfig = field(default_factory=EscapeHoleConfig)
     label: LabelConfig = field(default_factory=LabelConfig)
+    stand: StandConfig = field(default_factory=StandConfig)
 
 
-def _from_dict(cls: type, data: dict[str, Any]):
+# Released presets are frozen by tests/presets/<style>.toml. To change one,
+# add a new version instead. educelab.v1 is the dataclass defaults.
+PRESETS: dict[str, dict[str, Any]] = {
+    "educelab.v1": {},
+}
+
+_CHOICES = {
+    ("split", "type"): ("plane",),
+    ("shell", "type"): ("honeycomb", "solid"),
+    ("ends", "type"): ("shell",),
+    ("mount", "type"): ("generic-112.5", "generic-65"),
+    ("scroll", "smoothing"): ("none", "denoise", "shrink_expand"),
+}
+
+
+def _merge(base: dict, override: dict) -> dict:
+    out = copy.deepcopy(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(out.get(key), dict):
+            out[key] = _merge(out[key], value)
+        else:
+            out[key] = copy.deepcopy(value)
+    return out
+
+
+def _from_dict(cls: type, data: dict[str, Any], where: str = ""):
     fields = {f.name: f for f in dataclasses.fields(cls)}
     unknown = set(data) - set(fields)
     if unknown:
-        raise ValueError(f"Unknown {cls.__name__} keys: {sorted(unknown)}")
+        keys = ", ".join(where + k for k in sorted(unknown))
+        raise ValueError(f"Unknown config keys: {keys}")
     kwargs = {}
     for key, value in data.items():
         ftype = fields[key].type
         if dataclasses.is_dataclass(ftype):
-            value = _from_dict(ftype, value)
+            value = _from_dict(ftype, value, f"{where}{key}.")
         kwargs[key] = value
     return cls(**kwargs)
 
 
+def validate(cfg: CaseConfig) -> None:
+    """Reject unknown component types and combinations that can't be built."""
+    for (section, key), choices in _CHOICES.items():
+        value = getattr(getattr(cfg, section), key)
+        if value not in choices:
+            raise ValueError(f"{section}.{key} = {value!r} is not one of {list(choices)}")
+
+    def require(ok: bool, message: str):
+        if not ok:
+            raise ValueError(message)
+
+    require(
+        not cfg.shell.marker_rings or cfg.shell.type == "honeycomb",
+        f'shell.marker_rings requires shell.type = "honeycomb" (got {cfg.shell.type!r})',
+    )
+    require(
+        not cfg.shell.open_top or cfg.ends.type == "shell",
+        f'shell.open_top requires ends.type = "shell" (got {cfg.ends.type!r})',
+    )
+    require(
+        not cfg.stand.enabled or cfg.mount.type.startswith("generic-"),
+        f"stand requires a generic mount disc (mount.type = {cfg.mount.type!r})",
+    )
+
+
 def config_from_dict(data: dict[str, Any]) -> CaseConfig:
-    return _from_dict(CaseConfig, data)
+    """Resolve a config dict against its style preset and validate it."""
+    style = data.get("style", CaseConfig.style)
+    if style not in PRESETS:
+        raise ValueError(f"Unknown style {style!r}; available: {sorted(PRESETS)}")
+    merged = _merge(_merge(dataclasses.asdict(CaseConfig()), PRESETS[style]), data)
+    merged["style"] = style
+    cfg = _from_dict(CaseConfig, merged)
+    validate(cfg)
+    return cfg
 
 
 def load_config(path: str | Path) -> CaseConfig:

@@ -44,8 +44,9 @@ class MountDisc:
         return translate([0, 0, -self.thickness], disc)
 
 
+# Keyed by `mount.type`
 MOUNT_DISCS = {
-    "112.5": MountDisc(
+    "generic-112.5": MountDisc(
         diameter=112.5,
         thickness=12.5,
         notch_z=6.025,
@@ -55,7 +56,7 @@ MOUNT_DISCS = {
         widen_notch=False,
         pocket_height=7,
     ),
-    "65": MountDisc(
+    "generic-65": MountDisc(
         diameter=65,
         thickness=12.5,
         notch_z=6.025,

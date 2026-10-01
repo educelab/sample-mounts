@@ -1,0 +1,63 @@
+style = "educelab.v1"
+name = "Scroll Case"
+lining_offset = 2.0
+wall_thickness = 2.0
+bottom_buffer = 5.0
+top_buffer = 5.0
+internal_gap = 3.0
+overhang_removal = true
+voxel_size = 0.4
+
+[scroll]
+# mesh = "path/to/mesh.ply"
+scale = 1.0
+auto_align = true
+rotate = [0.0, 0.0, 0.0]
+translate = [0.0, 0.0, 0.0]
+decimate_max_error = 0.05
+smoothing = "none"
+smoothing_amount = 2.0
+generic_diameter = 76.0
+generic_height = 155.0
+
+[split]
+type = "plane"
+
+[shell]
+type = "honeycomb"
+open_top = false
+marker_rings = true
+
+[shell.honeycomb]
+hole_edges = 6
+columns = 12
+spacing = 1.5
+
+[ends]
+type = "shell"
+
+[mount]
+type = "generic-112.5"
+
+[nubs]
+positions = []
+size = 4.0
+depth = 1.5
+margin = 0.5
+
+[escape_holes]
+enabled = false
+offset = 1.5
+diameter = 4.0
+angle = 15.0
+
+[label]
+line1 = ""
+line2 = ""
+height = 5.0
+depth = 0.5
+font = "Arial Rounded MT Bold"
+
+[stand]
+enabled = true
+length_scale = 1.0

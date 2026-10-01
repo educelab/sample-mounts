@@ -2,7 +2,7 @@ import meshlib.mrmeshpy as mm
 import pytest
 from conftest import inside, is_closed
 
-from scrollcase.config import CaseConfig, EscapeHoleConfig, LabelConfig, NubConfig
+from scrollcase.config import config_from_dict
 from scrollcase.pipeline import build
 
 
@@ -13,11 +13,13 @@ def _bounds(mesh):
 
 @pytest.fixture(scope="module")
 def full_case(tmp_path_factory):
-    cfg = CaseConfig(
-        name="t",
-        nubs=NubConfig(positions=[[-44, 20], [44, 150]]),
-        escape_holes=EscapeHoleConfig(enabled=True),
-        label=LabelConfig(line1="TEST", line2="V1"),
+    cfg = config_from_dict(
+        {
+            "name": "t",
+            "nubs": {"positions": [[-44, 20], [44, 150]]},
+            "escape_holes": {"enabled": True},
+            "label": {"line1": "TEST", "line2": "V1"},
+        }
     )
     out = tmp_path_factory.mktemp("full")
     result = build(cfg, out)
@@ -71,7 +73,7 @@ def test_nubs_and_sockets(full_case):
 
 
 def test_generic_open_cradle(tmp_path):
-    cfg = CaseConfig(name="g", outer_cylinder=False)
+    cfg = config_from_dict({"name": "g", "shell": {"open_top": True}})
     result = build(cfg, tmp_path, parts=("left",))
     mesh = mm.loadMesh(result.outputs["left"])
     assert is_closed(mesh)

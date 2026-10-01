@@ -1,20 +1,60 @@
 import tomllib
+from pathlib import Path
 
 import pytest
 
-from scrollcase.cli import defaults_toml
-from scrollcase.config import CaseConfig, Layout, config_from_dict, load_config
+from scrollcase.cli import config_toml, defaults_toml
+from scrollcase.config import PRESETS, CaseConfig, Layout, config_from_dict, load_config
+
+PRESET_DIR = Path(__file__).parent / "presets"
 
 
-def test_defaults_toml_round_trips():
-    assert config_from_dict(tomllib.loads(defaults_toml())) == CaseConfig()
+@pytest.mark.parametrize("style", sorted(PRESETS))
+def test_released_presets_are_frozen(style):
+    """A preset's resolved values must never change; add a new version instead."""
+    golden = PRESET_DIR / f"{style}.toml"
+    assert golden.exists(), f"Add {golden.name} (scrollcase defaults --style {style})"
+    assert defaults_toml(style) == golden.read_text()
 
 
-def test_unknown_keys_are_rejected():
+@pytest.mark.parametrize("style", sorted(PRESETS))
+def test_defaults_toml_round_trips(style):
+    cfg = config_from_dict({"style": style})
+    assert config_from_dict(tomllib.loads(config_toml(cfg))) == cfg
+
+
+def test_default_style_is_educelab_v1():
+    assert config_from_dict({}) == config_from_dict({"style": "educelab.v1"})
+    assert config_from_dict({}) == CaseConfig()
+
+
+def test_user_values_override_preset():
+    cfg = config_from_dict({"shell": {"type": "solid", "marker_rings": False}})
+    assert cfg.shell.type == "solid"
+    # Untouched keys in the same section keep the preset's values
+    assert cfg.shell.honeycomb.columns == 12
+
+
+def test_unknown_keys_and_styles_are_rejected():
     with pytest.raises(ValueError, match="wall_thicknes"):
         config_from_dict({"wall_thicknes": 3})
-    with pytest.raises(ValueError, match="colour"):
+    with pytest.raises(ValueError, match=r"label\.colour"):
         config_from_dict({"label": {"colour": "red"}})
+    with pytest.raises(ValueError, match="educelab.v1"):
+        config_from_dict({"style": "educelab"})
+
+
+@pytest.mark.parametrize(
+    ("data", "message"),
+    [
+        ({"shell": {"type": "lattice"}}, "shell.type"),
+        ({"mount": {"type": "generic-100"}}, "mount.type"),
+        ({"shell": {"type": "solid"}}, "marker_rings"),
+    ],
+)
+def test_invalid_combinations_are_rejected(data, message):
+    with pytest.raises(ValueError, match=message):
+        config_from_dict(data)
 
 
 def test_mesh_path_resolves_relative_to_config(tmp_path):

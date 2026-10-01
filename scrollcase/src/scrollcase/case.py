@@ -47,7 +47,7 @@ def _prism(h: float, d: float, edges: int) -> Part:
 
 
 def _honeycomb_holes(cfg: CaseConfig, L: Layout) -> list[Part]:
-    hc = cfg.honeycomb
+    hc = cfg.shell.honeycomb
     d = L.outer_diameter
     gap_rot = math.degrees(hc.spacing / d)
     hex_rot = (360 - gap_rot * hc.columns) / hc.columns
@@ -89,7 +89,7 @@ def _honeycomb_cutter(cfg: CaseConfig, L: Layout) -> Part:
     d = L.outer_diameter
     mid_h = L.outer_height - L.wall - L.bottom_wall
     keep = translate([0, 0, L.bottom_wall], cylinder(mid_h, d))
-    if cfg.marker_rings:
+    if cfg.shell.marker_rings:
         for z in marker_ring_heights(L):
             keep -= translate([0, 0, z], cylinder(_MARKER_BAND_HEIGHT, d, center=True))
     keep -= translate(
@@ -105,13 +105,13 @@ def shell(cfg: CaseConfig, L: Layout) -> Part:
     hollow = translate([0, 0, L.inner_z], cylinder(L.inner_height, L.inner_diameter / 2))
     body = outer - hollow
 
-    if cfg.honeycomb.enabled:
+    if cfg.shell.type == "honeycomb":
         body -= _honeycomb_cutter(cfg, L)
-        if cfg.marker_rings:
+        if cfg.shell.marker_rings:
             for z in marker_ring_heights(L):
                 body += translate([0, 0, z], Torus(L.outer_diameter / 2, 0.5))
 
-    if not cfg.outer_cylinder:
+    if cfg.shell.open_top:
         # Scoop away the upper shell, leaving an open cradle around the lining
         tilt = 5
         size = [L.outer_diameter * 2, L.outer_diameter * 1.5, L.outer_height * 2]
@@ -177,7 +177,7 @@ def _nub_box(size: float, depth: float) -> Part:
 
 
 def left_body(cfg: CaseConfig, L: Layout) -> Part:
-    disc = MOUNT_DISCS[cfg.mount_disc]
+    disc = MOUNT_DISCS[cfg.mount.type]
     body = (shell(cfg, L) + divider(L)) & _half_space("left")
     body += disc.solid()
 
@@ -196,7 +196,7 @@ def left_body(cfg: CaseConfig, L: Layout) -> Part:
 
 
 def right_body(cfg: CaseConfig, L: Layout) -> Part:
-    disc = MOUNT_DISCS[cfg.mount_disc]
+    disc = MOUNT_DISCS[cfg.mount.type]
     body = (shell(cfg, L) + divider(L)) & _half_space("right")
 
     n = cfg.nubs
@@ -233,8 +233,8 @@ def _stand_wall(width: float, height: float, thickness: float, support: float) -
 
 def stand(cfg: CaseConfig, L: Layout) -> Part:
     """Cradle that holds the left half upright on its disc during assembly."""
-    disc = MOUNT_DISCS[cfg.mount_disc]
-    base_len = disc.thickness + L.outer_height * cfg.stand_length_scale
+    disc = MOUNT_DISCS[cfg.mount.type]
+    base_len = disc.thickness + L.outer_height * cfg.stand.length_scale
     base_w = max(disc.diameter, L.outer_diameter) + 0.5
     base_t = 5
     strip = 30
@@ -255,7 +255,7 @@ def stand(cfg: CaseConfig, L: Layout) -> Part:
     top_h = base_w / 2 - L.outer_diameter / 4
     top = rotate([0, 180, 0], _stand_wall(L.outer_diameter + 0.5, top_h, disc.thickness, support))
     top = translate(
-        [0, -base_w / 2 + top_h / 2 - 0.5, cfg.stand_length_scale * L.outer_height - 1.25 * base_t],
+        [0, -base_w / 2 + top_h / 2 - 0.5, cfg.stand.length_scale * L.outer_height - 1.25 * base_t],
         top,
     )
     bottom_h = base_w / 2 - disc.diameter / 4 + 0.5

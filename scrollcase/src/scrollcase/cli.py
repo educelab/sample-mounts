@@ -1,7 +1,7 @@
 """Command line interface.
 
 scrollcase build [MESH] [-c case.toml] [-o OUT_DIR] [--parts left,right,stand]
-scrollcase defaults > case.toml
+scrollcase defaults [--style STYLE] > case.toml
 """
 
 import argparse
@@ -9,7 +9,7 @@ import dataclasses
 import logging
 import sys
 
-from .config import CaseConfig, load_config
+from .config import PRESETS, CaseConfig, config_from_dict, load_config
 
 
 def _toml_value(value) -> str:
@@ -22,23 +22,30 @@ def _toml_value(value) -> str:
     return repr(value)
 
 
-def defaults_toml() -> str:
-    """Default config as TOML. `scroll.mesh` is left commented out."""
-    data = dataclasses.asdict(CaseConfig())
-    lines, tables = [], []
-    for key, value in data.items():
-        if isinstance(value, dict):
-            tables.append((key, value))
-        else:
-            lines.append(f"{key} = {_toml_value(value)}")
-    for name, table in tables:
-        lines.append(f"\n[{name}]")
-        for key, value in table.items():
-            if value is None:
-                lines.append(f'# {key} = "path/to/mesh.ply"')
+def config_toml(cfg: CaseConfig) -> str:
+    """A fully resolved config as TOML. Unset optional values are commented out."""
+    lines: list[str] = []
+
+    def table(data: dict, prefix: str) -> None:
+        nested = []
+        for key, value in data.items():
+            if isinstance(value, dict):
+                nested.append((key, value))
+            elif value is None:
+                hint = '"path/to/mesh.ply"' if key == "mesh" else "..."
+                lines.append(f"# {key} = {hint}")
             else:
                 lines.append(f"{key} = {_toml_value(value)}")
+        for key, value in nested:
+            lines.append(f"\n[{prefix}{key}]")
+            table(value, f"{prefix}{key}.")
+
+    table(dataclasses.asdict(cfg), "")
     return "\n".join(lines) + "\n"
+
+
+def defaults_toml(style: str = CaseConfig.style) -> str:
+    return config_toml(config_from_dict({"style": style}))
 
 
 def main(argv=None) -> int:
@@ -51,9 +58,12 @@ def main(argv=None) -> int:
     build.add_argument("-c", "--config", help="TOML config file")
     build.add_argument("-o", "--out", default=".", help="output directory")
     build.add_argument("--name", help="output file prefix (overrides name)")
-    build.add_argument("--parts", default="left,right,stand", help="comma-separated parts")
+    build.add_argument(
+        "--parts", help="comma-separated parts (default: left,right, plus stand if enabled)"
+    )
 
-    sub.add_parser("defaults", help="print the default config as TOML")
+    defaults = sub.add_parser("defaults", help="print a style's full config as TOML")
+    defaults.add_argument("--style", default=CaseConfig.style, choices=sorted(PRESETS))
 
     args = parser.parse_args(argv)
     logging.basicConfig(
@@ -62,10 +72,10 @@ def main(argv=None) -> int:
     )
 
     if args.command == "defaults":
-        sys.stdout.write(defaults_toml())
+        sys.stdout.write(defaults_toml(args.style))
         return 0
 
-    cfg = load_config(args.config) if args.config else CaseConfig()
+    cfg = load_config(args.config) if args.config else config_from_dict({})
     if args.mesh:
         cfg.scroll.mesh = args.mesh
     if args.name:
@@ -74,7 +84,7 @@ def main(argv=None) -> int:
     # Imported here so `defaults` works without loading meshlib
     from .pipeline import build as run_build
 
-    parts = [p.strip() for p in args.parts.split(",") if p.strip()]
+    parts = [p.strip() for p in args.parts.split(",") if p.strip()] if args.parts else None
     result = run_build(cfg, args.out, parts=parts)
     L = result.layout
     print(f"Scroll: {2 * L.scroll_radius:.2f} D x {L.scroll_height:.2f} H mm")

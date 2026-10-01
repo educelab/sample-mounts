@@ -1,15 +1,31 @@
 # Scroll case config reference
 
 Scroll cases are configured with a TOML file passed to `scrollcase build -c`.
-Every key is optional; anything left out uses the default shown here. Print a
-complete config with the defaults filled in:
+Every key is optional; anything left out comes from the config's style
+preset. Print a style's complete config:
 
 ```bash
-uv run scrollcase defaults > my-scroll.toml
+uv run scrollcase defaults --style educelab.v1 > my-scroll.toml
 ```
 
 Unknown keys are an error, so typos don't silently fall back to defaults.
-Lengths are in millimeters and angles in degrees.
+Combinations that can't be built are also rejected when the config loads
+(see [Valid combinations](#valid-combinations)). Lengths are in millimeters
+and angles in degrees.
+
+## Styles
+
+`style` picks a preset of defaults for every key below. Your own values
+override the preset key by key, so `[shell] type = "solid"` keeps the rest of
+the preset's `[shell]` settings.
+
+| Style | Description |
+|---|---|
+| `educelab.v1` | The default: honeycomb shell with floor and lid, flat split, Generic Mount Disc, stand. The former OpenSCAD generator's design. |
+
+Released styles never change, so a config rebuilds the same case for as
+long as it names the same style. A design update becomes a new version
+(e.g. `educelab.v2`). Omitting `style` means `educelab.v1`, permanently.
 
 **Case coordinates.** The case axis is +Z and the bottom of the shell is
 Z=0; the mount disc sits below it, from Z=-12.5 to 0. The halves split on the
@@ -20,17 +36,14 @@ half is on the +Y side.
 
 | Key | Default | Description |
 |---|---|---|
+| `style` | `"educelab.v1"` | Preset to resolve the rest of the config against. See [Styles](#styles). |
 | `name` | `"Scroll Case"` | Output file prefix: `<name>-L.stl`, `-R.stl`, `-Stand.stl`, `-Scroll.stl`. Overridden by `--name`. |
 | `lining_offset` | `2.0` | Clearance between the scroll surface and the inside of the lining. Also the gap above and below the scroll. |
 | `wall_thickness` | `2.0` | Thickness of the lining wall, shell, lid, and half of the divider. The floor is `max(2, wall_thickness)`. |
 | `bottom_buffer` | `5.0` | Gap between the floor and the bottom of the lining. |
 | `top_buffer` | `5.0` | Gap between the top of the lining and the lid. |
 | `internal_gap` | `3.0` | Radial gap between the lining and the inside of the shell. |
-| `outer_cylinder` | `true` | `false` cuts away the upper shell on both sides, leaving an open cradle around the lining. |
 | `overhang_removal` | `true` | Extrudes each half's cavity toward the split so the scroll can be lowered straight in. Turn off only to inspect the raw lining. |
-| `marker_rings` | `true` | Raised rings at the cavity bottom, scroll bottom, scroll middle, scroll top, and cavity top. Only drawn when `honeycomb.enabled` is on. |
-| `mount_disc` | `"112.5"` | Mount disc on the left half: `"112.5"` or `"65"` (mm diameter). These match `OpenSCAD/Generic Mount Disc*.scad`. |
-| `stand_length_scale` | `1.0` | Stand length as a fraction of the case height. The top cradle moves with it. |
 | `voxel_size` | `0.4` | Resolution of the lining offsets and overhang removal. Smaller is more faithful but slower and uses more memory; the PHercParis scrolls peaked at 3.5–5 GB at 0.4. |
 
 ## `[scroll]`
@@ -50,17 +63,50 @@ The input mesh and how it is prepared and placed.
 | `generic_diameter` | `76.0` | Diameter of the generic cylinder used when `mesh` is unset. |
 | `generic_height` | `155.0` | Height of the generic cylinder used when `mesh` is unset. |
 
-## `[honeycomb]`
+## `[split]`
 
-Hexagonal cutouts in the shell. The floor, lid, marker ring bands, and
-divider stay solid.
+The surface the two halves separate along.
 
 | Key | Default | Description |
 |---|---|---|
-| `enabled` | `true` | `false` gives a solid shell. |
+| `type` | `"plane"` | `"plane"`: the XZ plane. |
+
+## `[shell]`
+
+The outer cylinder around the lining, including its floor and lid.
+
+| Key | Default | Description |
+|---|---|---|
+| `type` | `"honeycomb"` | `"honeycomb"` (hexagonal cutouts) or `"solid"`. |
+| `open_top` | `false` | Cuts away the upper shell on both sides, leaving an open cradle around the lining. |
+| `marker_rings` | `true` | Raised rings at the cavity bottom, scroll bottom, scroll middle, scroll top, and cavity top. |
+
+### `[shell.honeycomb]`
+
+Hexagonal cutouts, used when `shell.type = "honeycomb"`. The floor, lid,
+marker ring bands, and divider stay solid.
+
+| Key | Default | Description |
+|---|---|---|
 | `hole_edges` | `6` | Number of sides on each hole. |
 | `columns` | `12` | Holes around the circumference. Alternate rows are offset by half a column. |
 | `spacing` | `1.5` | Width of the strips between holes. |
+
+## `[ends]`
+
+What closes the top and bottom of the case.
+
+| Key | Default | Description |
+|---|---|---|
+| `type` | `"shell"` | `"shell"`: the shell's own floor and lid. |
+
+## `[mount]`
+
+The mount that attaches the left half to the scanner.
+
+| Key | Default | Description |
+|---|---|---|
+| `type` | `"generic-112.5"` | `"generic-112.5"` or `"generic-65"`: the Generic Mount Disc of that diameter, matching `OpenSCAD/Generic Mount Disc*.scad`. |
 
 ## `[nubs]`
 
@@ -102,6 +148,26 @@ engraved on the stand's back plate, on the face toward the case.
 | `height` | `5.0` | Font size. |
 | `depth` | `0.5` | Engraving depth. |
 | `font` | `"Arial Rounded MT Bold"` | System font name. If the font isn't installed, Arial is used instead. OpenCASCADE's warning about this is hidden when the build succeeds. |
+
+## `[stand]`
+
+Cradle that holds the left half upright on its mount disc during assembly.
+
+| Key | Default | Description |
+|---|---|---|
+| `enabled` | `true` | Builds `<name>-Stand.stl`. `--parts` defaults to `left,right`, plus `stand` when this is on. |
+| `length_scale` | `1.0` | Stand length as a fraction of the case height. The top cradle moves with it. |
+
+## Valid combinations
+
+These are checked when the config loads, and the error names the keys
+involved.
+
+| Rule | Why |
+|---|---|
+| `shell.marker_rings` requires `shell.type = "honeycomb"` | The rings fill bands of the honeycomb. |
+| `shell.open_top` requires `ends.type = "shell"` | It cuts away the shell's lid. |
+| `stand.enabled` requires a `generic-*` mount | The cradle is shaped around the Generic Mount Disc and its notch. |
 
 ## How the dimensions stack up
 
