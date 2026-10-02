@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import lining
-from .config import CaseConfig, Layout, validate, validate_layout
+from .config import CaseConfig, ConfigError, Layout, validate, validate_layout
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,9 @@ def _render_bodies(
     for part, (proc, out) in procs.items():
         _, err = proc.communicate()
         if proc.returncode != 0 or not out.exists():
-            raise RuntimeError(f"B-rep stage failed for {part}:\n{err}")
+            logger.info("B-rep worker output for %s:\n%s", part, err)
+            last = err.strip().splitlines()[-1] if err.strip() else f"exit code {proc.returncode}"
+            raise RuntimeError(f"B-rep stage failed for {part}: {last}")
         bodies[part] = out
     return bodies
 
@@ -73,9 +75,11 @@ def build(
     parts = default_parts(cfg) if parts is None else tuple(parts)
     unknown = set(parts) - set(ALL_PARTS)
     if unknown:
-        raise ValueError(f"Unknown parts: {sorted(unknown)}")
+        raise ConfigError(f"Unknown parts: {sorted(unknown)}; available: {sorted(ALL_PARTS)}")
     if "stand" in parts and not cfg.stand.enabled:
-        raise ValueError("stand requested but stand.enabled = false")
+        raise ConfigError("stand requested but stand.enabled = false")
+    if cfg.scroll.mesh and not Path(cfg.scroll.mesh).is_file():
+        raise ConfigError(f"Scroll mesh not found: {cfg.scroll.mesh}")
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 

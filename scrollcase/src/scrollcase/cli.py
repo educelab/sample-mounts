@@ -9,7 +9,7 @@ import dataclasses
 import logging
 import sys
 
-from .config import PRESETS, CaseConfig, config_from_dict, load_config
+from .config import PRESETS, CaseConfig, ConfigError, config_from_dict, load_config
 
 
 def _toml_value(value) -> str:
@@ -56,7 +56,9 @@ def defaults_toml(style: str = CaseConfig.style) -> str:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="scrollcase", description=__doc__.split("\n")[0])
-    parser.add_argument("-v", "--verbose", action="store_true")
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="log progress and show full tracebacks"
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     build = sub.add_parser("build", help="generate case STLs")
@@ -80,7 +82,22 @@ def main(argv=None) -> int:
     if args.command == "defaults":
         sys.stdout.write(defaults_toml(args.style))
         return 0
+    try:
+        return _build(args)
+    except ConfigError as e:
+        if args.verbose:
+            raise
+        print(f"scrollcase: config error: {e}", file=sys.stderr)
+        return 2
+    except Exception as e:
+        if args.verbose:
+            raise
+        print(f"scrollcase: build failed: {e}", file=sys.stderr)
+        print("Run with -v for details.", file=sys.stderr)
+        return 1
 
+
+def _build(args) -> int:
     cfg = load_config(args.config) if args.config else config_from_dict({})
     if args.mesh:
         cfg.scroll.mesh = args.mesh

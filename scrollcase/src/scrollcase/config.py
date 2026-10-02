@@ -13,7 +13,12 @@ import math
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from types import UnionType
+from typing import Any, get_args, get_origin
+
+
+class ConfigError(ValueError):
+    """A config the user can fix: bad keys, values, or combinations."""
 
 
 @dataclass
@@ -197,17 +202,53 @@ def _merge(base: dict, override: dict) -> dict:
     return out
 
 
+_TYPE_NAMES = {float: "number", int: "integer", bool: "boolean", str: "string"}
+
+
+def _type_name(ftype, plural=False) -> str:
+    """Plain-English name of a field type, e.g. "a list of numbers"."""
+    if isinstance(ftype, UnionType):
+        names = [_type_name(t, plural) for t in get_args(ftype) if t is not type(None)]
+        return " or ".join(names)
+    if get_origin(ftype) is list:
+        inner = _type_name(get_args(ftype)[0], plural=True)
+        return f"lists of {inner}" if plural else f"a list of {inner}"
+    name = _TYPE_NAMES.get(ftype, getattr(ftype, "__name__", str(ftype)))
+    if plural:
+        return name + "s"
+    return ("an " if name[0] in "aeiou" else "a ") + name
+
+
+def _matches(value, ftype) -> bool:
+    if isinstance(ftype, UnionType):
+        return any(_matches(value, t) for t in get_args(ftype))
+    if get_origin(ftype) is list:
+        (item,) = get_args(ftype)
+        return isinstance(value, list) and all(_matches(v, item) for v in value)
+    if ftype is type(None):
+        return value is None
+    if isinstance(value, bool):
+        return ftype is bool
+    if ftype is float:
+        return isinstance(value, (int, float))
+    return isinstance(value, ftype)
+
+
 def _from_dict(cls: type, data: dict[str, Any], where: str = ""):
     fields = {f.name: f for f in dataclasses.fields(cls)}
     unknown = set(data) - set(fields)
     if unknown:
         keys = ", ".join(where + k for k in sorted(unknown))
-        raise ValueError(f"Unknown config keys: {keys}")
+        raise ConfigError(f"Unknown config keys: {keys}")
     kwargs = {}
     for key, value in data.items():
         ftype = fields[key].type
         if dataclasses.is_dataclass(ftype):
+            if not isinstance(value, dict):
+                raise ConfigError(f"{where}{key} must be a table, e.g. [{where}{key}]")
             value = _from_dict(ftype, value, f"{where}{key}.")
+        elif not _matches(value, ftype):
+            raise ConfigError(f"{where}{key} = {value!r} must be {_type_name(ftype)}")
         kwargs[key] = value
     return cls(**kwargs)
 
@@ -217,11 +258,11 @@ def validate(cfg: CaseConfig) -> None:
     for (section, key), choices in _CHOICES.items():
         value = getattr(getattr(cfg, section), key)
         if value not in choices:
-            raise ValueError(f"{section}.{key} = {value!r} is not one of {list(choices)}")
+            raise ConfigError(f"{section}.{key} = {value!r} is not one of {list(choices)}")
 
     def require(ok: bool, message: str):
         if not ok:
-            raise ValueError(message)
+            raise ConfigError(message)
 
     require(
         not cfg.shell.marker_rings or cfg.shell.type == "honeycomb",
@@ -253,7 +294,7 @@ def config_from_dict(data: dict[str, Any]) -> CaseConfig:
     """Resolve a config dict against its style preset and validate it."""
     style = data.get("style", CaseConfig.style)
     if style not in PRESETS:
-        raise ValueError(f"Unknown style {style!r}; available: {sorted(PRESETS)}")
+        raise ConfigError(f"Unknown style {style!r}; available: {sorted(PRESETS)}")
     merged = _merge(_merge(dataclasses.asdict(CaseConfig()), PRESETS[style]), data)
     merged["style"] = style
     cfg = _from_dict(CaseConfig, merged)
@@ -264,7 +305,16 @@ def config_from_dict(data: dict[str, Any]) -> CaseConfig:
 def load_config(path: str | Path) -> CaseConfig:
     """Load a TOML config. Relative mesh paths resolve against the file."""
     path = Path(path)
-    cfg = config_from_dict(tomllib.loads(path.read_text()))
+    try:
+        data = tomllib.loads(path.read_text())
+    except FileNotFoundError:
+        raise ConfigError(f"Config file not found: {path}") from None
+    except tomllib.TOMLDecodeError as e:
+        raise ConfigError(f"{path}: invalid TOML: {e}") from None
+    try:
+        cfg = config_from_dict(data)
+    except ConfigError as e:
+        raise ConfigError(f"{path}: {e}") from None
     if cfg.scroll.mesh and not Path(cfg.scroll.mesh).is_absolute():
         cfg.scroll.mesh = str((path.parent / cfg.scroll.mesh).resolve())
     return cfg
@@ -350,13 +400,32 @@ def nub_extent(cfg: CaseConfig, index: int) -> float:
 
 def validate_layout(cfg: CaseConfig, L: Layout) -> None:
     """Checks that need the fitted scroll size, run once the layout is known."""
+    from .split import profile_for
+
+    profile_for(cfg, L)
+    divider = L.outer_diameter / 2 - L.cavity_diameter / 2
     for i, (x, z) in enumerate(cfg.nubs.positions):
         e = nub_extent(cfg, i)
         r = abs(x)
-        if r - e < L.cavity_diameter / 2 or r + e > L.outer_diameter / 2:
-            raise ValueError(
-                f"nubs.positions[{i}] = [{x}, {z}] is off the divider: |x| must be in "
-                f"[{L.cavity_diameter / 2 + e:.2f}, {L.outer_diameter / 2 - e:.2f}]"
+        lo, hi = L.cavity_diameter / 2 + e, L.outer_diameter / 2 - e
+        if lo > hi:
+            shape = "diamond" if NUB_ROTATIONS[i % 2] else "square"
+            raise ConfigError(
+                f"nubs.positions[{i}]: a {shape} nub of nubs.size = {cfg.nubs.size} is "
+                f"{2 * e:.2f} mm wide, but the divider between the cavity and the outer wall "
+                f"is only {divider:.2f} mm wide. Use a smaller nubs.size, or a shell"
+                f" or thicker wall_thickness to widen the divider."
             )
-        if not L.inner_z + e <= z <= L.inner_z + L.inner_height - e:
-            raise ValueError(f"nubs.positions[{i}] = [{x}, {z}] is outside the case height")
+        if r < lo or r > hi:
+            where = "into the scroll cavity" if r < lo else "past the outside of the case"
+            raise ConfigError(
+                f"nubs.positions[{i}] = [{x}, {z}]: a nub at x = {x} would stick {where}. "
+                f"Nubs sit on the divider between the cavity and the outer wall; for this "
+                f"scroll and nubs.size = {cfg.nubs.size}, x must be ±{lo:.2f} to ±{hi:.2f}"
+            )
+        z_lo, z_hi = L.inner_z + e, L.inner_z + L.inner_height - e
+        if not z_lo <= z <= z_hi:
+            raise ConfigError(
+                f"nubs.positions[{i}] = [{x}, {z}]: z must be {z_lo:.2f} to {z_hi:.2f} "
+                f"to keep the nub inside the case"
+            )

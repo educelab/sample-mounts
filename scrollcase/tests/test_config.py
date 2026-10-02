@@ -3,8 +3,15 @@ from pathlib import Path
 
 import pytest
 
-from scrollcase.cli import config_toml, defaults_toml
-from scrollcase.config import PRESETS, CaseConfig, Layout, config_from_dict, load_config
+from scrollcase.cli import config_toml, defaults_toml, main
+from scrollcase.config import (
+    PRESETS,
+    CaseConfig,
+    ConfigError,
+    Layout,
+    config_from_dict,
+    load_config,
+)
 
 PRESET_DIR = Path(__file__).parent / "presets"
 
@@ -91,3 +98,30 @@ def test_villa_preset_layout_matches_upstream():
     assert L.outer_height == L.inner_height + 2 * 10
     assert L.split_span == L.cavity_diameter / 2
     assert L.cap_half_width == 112.5 / 2
+
+
+@pytest.mark.parametrize(
+    ("data", "message"),
+    [
+        ({"wall_thickness": "2"}, "wall_thickness = '2' must be a number"),
+        ({"shell": {"open_top": 1}}, "must be a boolean"),
+        ({"shell": "none"}, r"shell must be a table"),
+        ({"nubs": {"positions": [[1, "a"]]}}, "a list of lists of numbers"),
+        ({"label": {"line1": 5}}, "label.line1 = 5 must be a string"),
+    ],
+)
+def test_wrong_value_types_are_rejected(data, message):
+    with pytest.raises(ConfigError, match=message):
+        config_from_dict(data)
+
+
+def test_cli_reports_config_errors_without_traceback(tmp_path, capsys):
+    (tmp_path / "bad.toml").write_text("wall_thickness = \n")
+    assert main(["build", "-c", str(tmp_path / "bad.toml")]) == 2
+    assert main(["build", "-c", str(tmp_path / "missing.toml")]) == 2
+    assert main(["build", str(tmp_path / "missing.ply")]) == 2
+    err = capsys.readouterr().err.splitlines()
+    assert len(err) == 3
+    assert "invalid TOML" in err[0]
+    assert "Config file not found" in err[1]
+    assert "Scroll mesh not found" in err[2]

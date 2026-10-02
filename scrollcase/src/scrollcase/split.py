@@ -15,6 +15,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from .config import ConfigError
+
 # Arcs sampled for meshes use this many points; the chord error is negligible
 _ARC_SAMPLES = 256
 
@@ -74,7 +76,7 @@ def make_profile(split_type: str, span: float, wall: float, amplitude=None, flip
     if split_type == "plane":
         return Profile(span)
     if split_type != "curve":
-        raise ValueError(f"Unknown split type {split_type!r}")
+        raise ConfigError(f"Unknown split type {split_type!r}")
 
     r = span + wall
     a = 0.2 * r if amplitude is None else amplitude
@@ -83,8 +85,12 @@ def make_profile(split_type: str, span: float, wall: float, amplitude=None, flip
     mid_x = r / 2
     # Each arc must stay a graph over x, i.e. less than a semicircle. That
     # holds when its midpoint is inside the circle on its chord (-span, 0).
-    if (mid_x - span / 2) ** 2 + a**2 >= (span / 2) ** 2:
-        raise ValueError(f"split.amplitude {abs(a):.2f} is too large for a span of {span:.2f}")
+    limit = math.sqrt(max((span / 2) ** 2 - (mid_x - span / 2) ** 2, 0))
+    if abs(a) >= limit:
+        raise ConfigError(
+            f"split.amplitude = {abs(a):.2f} is too large: for this case's split span of "
+            f"{span:.2f} mm it must be under {limit:.2f}"
+        )
     arcs = (
         Arc((-span, 0.0), (-mid_x, a), (0.0, 0.0)),
         Arc((0.0, 0.0), (mid_x, -a), (span, 0.0)),

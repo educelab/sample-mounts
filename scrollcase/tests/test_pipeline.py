@@ -2,7 +2,7 @@ import meshlib.mrmeshpy as mm
 import pytest
 from conftest import inside, is_closed
 
-from scrollcase.config import config_from_dict
+from scrollcase.config import ConfigError, config_from_dict
 from scrollcase.pipeline import build
 from scrollcase.split import profile_for
 
@@ -126,10 +126,17 @@ def test_nubs_follow_the_curve(curved_case):
         assert inside(meshes["right"], (xn, fy + 3.2, z))
 
 
-def test_nubs_off_the_divider_are_rejected(tmp_path):
-    cfg = config_from_dict({"nubs": {"positions": [[-30, 20]]}})
-    with pytest.raises(ValueError, match=r"nubs.positions\[0\]"):
-        build(cfg, tmp_path, parts=("left",))
+@pytest.mark.parametrize(
+    ("data", "message"),
+    [
+        ({"nubs": {"positions": [[-30, 20]]}}, "into the scroll cavity"),
+        ({"nubs": {"positions": [[-60, 20]]}}, "past the outside"),
+        ({"style": "villa.2026-10", "nubs": {"positions": [[-44, 20]]}}, "divider .* is only"),
+    ],
+)
+def test_nubs_off_the_divider_are_rejected(tmp_path, data, message):
+    with pytest.raises(ConfigError, match=rf"nubs.positions\[0\].*{message}"):
+        build(config_from_dict(data), tmp_path, parts=("left",))
 
 
 @pytest.fixture(scope="module")
