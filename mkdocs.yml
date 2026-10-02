@@ -24,9 +24,15 @@ markdown_extensions:
   - admonition
   - attr_list
   - pymdownx.highlight
+  - pymdownx.snippets:
+      base_path: [scrollcase/examples]
+      check_paths: true
   - pymdownx.superfences
   - toc:
       permalink: true
+
+watch:
+  - scrollcase/examples
 
 exclude_docs: |
   villa-2026-10-comparison.md

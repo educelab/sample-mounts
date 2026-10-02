@@ -16,15 +16,22 @@ honeycomb case: left half (with mount disc), right half, and assembly stand.
    be a single watertight surface. Orientation and position don't matter. If
    it isn't in millimeters, set `scroll.scale`.
 
-2. **Write a config.** Start from the defaults or the example:
+2. **Write a config.** Copy
+   [`scrollcase/examples/template.toml`](https://github.com/educelab/sample-mounts/blob/main/scrollcase/examples/template.toml)
+   next to your mesh:
+
+   ```toml
+   --8<-- "template.toml"
+   ```
+
+   Set `name`, `scroll.mesh` (relative to the config file), and the label.
+   Every option is described in [the config reference](scroll-case-config.md).
+   To start from every option instead, print a style's full config:
 
    ```bash
    cd scrollcase
    uv run scrollcase defaults --style educelab.v1 > my-scroll.toml
    ```
-
-   Set `name`, `scroll.mesh` (relative to the config file), and the label.
-   Every option is described in [the config reference](scroll-case-config.md).
 
 3. **Generate a draft.**
 

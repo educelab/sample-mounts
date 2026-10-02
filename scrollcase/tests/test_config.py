@@ -125,3 +125,10 @@ def test_cli_reports_config_errors_without_traceback(tmp_path, capsys):
     assert "invalid TOML" in err[0]
     assert "Config file not found" in err[1]
     assert "Scroll mesh not found" in err[2]
+
+
+@pytest.mark.parametrize(
+    "path", sorted((Path(__file__).parents[1] / "examples").glob("*.toml")), ids=lambda p: p.name
+)
+def test_examples_load(path):
+    load_config(path)

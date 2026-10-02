@@ -1,0 +1,26 @@
+# Starting point for a scroll case. Copy it next to your mesh and edit.
+# Anything left out comes from the style preset; every option is listed in
+# the config reference, or run: scrollcase defaults --style educelab.v1
+style = "educelab.v1"
+name = "PHerc-XXXX"          # output files are <name>-L.stl, -R.stl, ...
+
+[scroll]
+mesh = "PHerc-XXXX.ply"      # relative to this file
+scale = 1.0                  # set if the mesh isn't in millimeters
+rotate = [0, 0, 0]           # degrees about X, Y, Z, applied after alignment
+smoothing = "none"           # "denoise" or "shrink_expand" for very detailed meshes
+
+[split]
+type = "plane"               # "curve" avoids a flat seam lined up with the beam
+
+[nubs]
+# [x, z] pairs on the divider, between the lining and the shell. The build
+# prints both diameters; place nubs after a first draft.
+positions = []
+
+[escape_holes]
+enabled = false
+
+[label]
+line1 = "PHerc-XXXX"
+line2 = ""
