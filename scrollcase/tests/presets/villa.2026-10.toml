@@ -1,0 +1,76 @@
+style = "villa.2026-10"
+name = "Scroll Case"
+lining_offset = 2.0
+wall_thickness = 2.0
+bottom_buffer = 3.0
+top_buffer = 3.0
+internal_gap = 3.0
+overhang_removal = true
+voxel_size = 0.4
+
+[scroll]
+# mesh = "path/to/mesh.ply"
+scale = 1.0
+auto_align = true
+rotate = [0.0, 0.0, 0.0]
+translate = [0.0, 0.0, 0.0]
+decimate_max_error = 0.02
+smoothing = "none"
+smoothing_amount = 2.0
+generic_diameter = 76.0
+generic_height = 155.0
+
+[split]
+type = "curve"
+# amplitude = 10.0  # default: 0.2 x (span + wall_thickness)
+flip = false
+
+[shell]
+type = "none"
+open_top = false
+marker_rings = false
+
+[shell.honeycomb]
+hole_edges = 6
+columns = 12
+spacing = 1.5
+
+[ends]
+type = "caps"
+cap_height = 10.0
+corner_fillet = 6.25
+bolt_hole_diameter = 5.0
+bolt_counterbore_diameter = 8.0
+bolt_counterbore_depth = 2.0
+nut_diameter = 9.0
+nut_depth = 3.5
+mount_hole_spacing = 50.0
+mount_hole_diameter = 6.8
+mount_counterbore_diameter = 10.5
+mount_counterbore_depth = 5.0
+
+[mount]
+type = "kinematic"
+
+[nubs]
+positions = []
+size = 4.0
+depth = 1.5
+margin = 0.5
+
+[escape_holes]
+enabled = false
+offset = 1.5
+diameter = 4.0
+angle = 15.0
+
+[label]
+line1 = ""
+line2 = ""
+height = 8.0
+depth = 0.5
+font = "Arial"
+
+[stand]
+enabled = false
+length_scale = 1.0

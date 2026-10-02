@@ -42,6 +42,11 @@ B-rep stage in `brep_worker` subprocesses and exchanges STLs. Don't import
 `mount_disc.py` mirrors `OpenSCAD/Generic Mount Disc*.scad`, which the
 interface plates and spindle bases still use. Keep them in sync.
 
+`villa.2026-10` is checked against upstream's own code: run
+`scripts/villa_reference.py` in an environment with villa's pinned
+dependencies (see its docstring) to regenerate the reference data in
+`tests/data/`. See [`docs/villa-2026-10-comparison.md`](../docs/villa-2026-10-comparison.md).
+
 ## Attribution
 
 The alignment approach and mesh pipeline are adapted from the

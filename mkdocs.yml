@@ -1,0 +1,44 @@
+site_name: Sample Mounts
+site_url: https://educelab.github.io/sample-mounts/
+repo_url: https://github.com/educelab/sample-mounts
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  features:
+    - content.code.copy
+    - navigation.sections
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - pymdownx.highlight
+  - pymdownx.snippets:
+      base_path: [scrollcase/examples]
+      check_paths: true
+  - pymdownx.superfences
+  - toc:
+      permalink: true
+
+watch:
+  - scrollcase/examples
+
+exclude_docs: |
+  villa-2026-10-comparison.md
+
+nav:
+  - Home: index.md
+  - Scroll cases:
+      - Creating a scroll case: creating-scroll-case.md
+      - Config reference: scroll-case-config.md

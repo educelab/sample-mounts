@@ -1,15 +1,54 @@
 # Scroll case config reference
 
 Scroll cases are configured with a TOML file passed to `scrollcase build -c`.
-Every key is optional; anything left out uses the default shown here. Print a
-complete config with the defaults filled in:
+Every key is optional; anything left out comes from the config's style
+preset. Print a style's complete config:
 
 ```bash
-uv run scrollcase defaults > my-scroll.toml
+uv run scrollcase defaults --style educelab.v1 > my-scroll.toml
 ```
 
 Unknown keys are an error, so typos don't silently fall back to defaults.
-Lengths are in millimeters and angles in degrees.
+Combinations that can't be built are also rejected when the config loads
+(see [Valid combinations](#valid-combinations)). Lengths are in millimeters
+and angles in degrees.
+
+## Styles
+
+`style` picks a preset of defaults for every key below. Your own values
+override the preset key by key, so `[shell] type = "solid"` keeps the rest of
+the preset's `[shell]` settings, including its marker rings.
+
+| Style | Description |
+|---|---|
+| `educelab.v1` | The default: honeycomb shell with floor and lid, flat split, Generic Mount Disc, stand. The former OpenSCAD generator's design. |
+| `villa.2026-10` | [ScrollPrize/villa's case](https://github.com/ScrollPrize/villa/tree/main/foundation/scrollcase) at commit `7d6a82c` (2026-10-01): no shell, curved split ending in round posts, square bolted caps with upstream's label layout, kinematic mount disc, 3 mm margins, no stand. |
+
+Components mix freely within the [valid combinations](#valid-combinations),
+e.g. villa's caps and kinematic disc around a honeycomb shell:
+
+```toml
+style = "educelab.v1"
+[split]
+type = "curve"
+[ends]
+type = "caps"
+[mount]
+type = "kinematic"
+[stand]
+enabled = false
+```
+
+`villa.2026-10` reproduces upstream's case bodies exactly; see the
+[comparison](https://github.com/educelab/sample-mounts/blob/main/docs/villa-2026-10-comparison.md). The known differences are all in
+the mesh stage: the scroll fit uses a tighter tolerance, the wide-axis
+rotation normalizes its vector before taking the angle, `voxel_size` is
+absolute (upstream uses 0.4% of the mesh diagonal), and `"denoise"`
+smoothing uses `smoothing_amount` (upstream ignores its strength setting).
+
+Released styles never change, so a config rebuilds the same case for as
+long as it names the same style. A design update becomes a new version
+(e.g. `educelab.v2`). Omitting `style` means `educelab.v1`, permanently.
 
 **Case coordinates.** The case axis is +Z and the bottom of the shell is
 Z=0; the mount disc sits below it, from Z=-12.5 to 0. The halves split on the
@@ -20,17 +59,14 @@ half is on the +Y side.
 
 | Key | Default | Description |
 |---|---|---|
+| `style` | `"educelab.v1"` | Preset to resolve the rest of the config against. See [Styles](#styles). |
 | `name` | `"Scroll Case"` | Output file prefix: `<name>-L.stl`, `-R.stl`, `-Stand.stl`, `-Scroll.stl`. Overridden by `--name`. |
 | `lining_offset` | `2.0` | Clearance between the scroll surface and the inside of the lining. Also the gap above and below the scroll. |
 | `wall_thickness` | `2.0` | Thickness of the lining wall, shell, lid, and half of the divider. The floor is `max(2, wall_thickness)`. |
 | `bottom_buffer` | `5.0` | Gap between the floor and the bottom of the lining. |
 | `top_buffer` | `5.0` | Gap between the top of the lining and the lid. |
 | `internal_gap` | `3.0` | Radial gap between the lining and the inside of the shell. |
-| `outer_cylinder` | `true` | `false` cuts away the upper shell on both sides, leaving an open cradle around the lining. |
 | `overhang_removal` | `true` | Extrudes each half's cavity toward the split so the scroll can be lowered straight in. Turn off only to inspect the raw lining. |
-| `marker_rings` | `true` | Raised rings at the cavity bottom, scroll bottom, scroll middle, scroll top, and cavity top. Only drawn when `honeycomb.enabled` is on. |
-| `mount_disc` | `"112.5"` | Mount disc on the left half: `"112.5"` or `"65"` (mm diameter). These match `OpenSCAD/Generic Mount Disc*.scad`. |
-| `stand_length_scale` | `1.0` | Stand length as a fraction of the case height. The top cradle moves with it. |
 | `voxel_size` | `0.4` | Resolution of the lining offsets and overhang removal. Smaller is more faithful but slower and uses more memory; the PHercParis scrolls peaked at 3.5–5 GB at 0.4. |
 
 ## `[scroll]`
@@ -50,24 +86,79 @@ The input mesh and how it is prepared and placed.
 | `generic_diameter` | `76.0` | Diameter of the generic cylinder used when `mesh` is unset. |
 | `generic_height` | `155.0` | Height of the generic cylinder used when `mesh` is unset. |
 
-## `[honeycomb]`
+## `[split]`
 
-Hexagonal cutouts in the shell. The floor, lid, marker ring bands, and
-divider stay solid.
+The surface the two halves separate along. Every split is a profile
+y = f(x) extruded along Z, so from anywhere in a half the scroll can move
+straight along Y to the split; overhang removal relies on this.
 
 | Key | Default | Description |
 |---|---|---|
-| `enabled` | `true` | `false` gives a solid shell. |
+| `type` | `"plane"` | `"plane"`: the XZ plane. `"curve"`: ScrollPrize/villa's S-shaped split, made of two arcs, spanning the whole case out to the middle of the shell wall. A curved seam avoids a flat interface lined up with the beam, which shows up as a streak in CT. |
+| `amplitude` | unset | How far the S bulges from the XZ plane. Unset means 0.2 × (span + `wall_thickness`), as upstream, where the span is the radius at the middle of the shell wall. Too large an amplitude is an error. |
+| `flip` | `false` | Mirrors the S. |
+
+With a curved split the divider follows the curve at constant thickness,
+and nubs move along Y to sit on it.
+
+## `[shell]`
+
+The outer cylinder around the lining, including its floor and lid.
+
+| Key | Default | Description |
+|---|---|---|
+| `type` | `"honeycomb"` | `"honeycomb"` (hexagonal cutouts), `"solid"`, or `"none"`. With `"none"` the case is just the lining, divider, and ends, as upstream; the divider then ends in round posts at the cavity edge. |
+| `open_top` | `false` | Cuts away the upper shell on both sides, leaving an open cradle around the lining. |
+| `marker_rings` | `true` | Raised rings at the cavity bottom, scroll bottom, scroll middle, scroll top, and cavity top, on a honeycomb or solid shell. Ignored with `type = "none"`, since there is no shell to put them on, so switching a preset to no shell doesn't also require turning them off. |
+
+### `[shell.honeycomb]`
+
+Hexagonal cutouts, used when `shell.type = "honeycomb"`. The floor, lid,
+marker ring bands, and divider stay solid.
+
+| Key | Default | Description |
+|---|---|---|
 | `hole_edges` | `6` | Number of sides on each hole. |
 | `columns` | `12` | Holes around the circumference. Alternate rows are offset by half a column. |
 | `spacing` | `1.5` | Width of the strips between holes. |
 
+## `[ends]`
+
+What closes the top and bottom of the case.
+
+| Key | Default | Description |
+|---|---|---|
+| `type` | `"shell"` | `"shell"`: the shell's own floor and lid. `"caps"`: villa's square end caps, sized to the larger of the mount disc and the case (plus one `wall_thickness` on each side around a shell). Bolts through tabs on both sides clamp the halves together; the bottom cap has counterbored mounting holes and an engraved arrow; the top cap carries the label. |
+| `cap_height` | `10.0` | Cap thickness. Also the width of the bolt tabs. |
+| `corner_fillet` | `6.25` | Radius of the caps' corners. |
+| `bolt_hole_diameter` | `5.0` | Clamping bolt clearance hole (M4, loose). |
+| `bolt_counterbore_diameter` | `8.0` | Bolt head counterbore, on the +Y face of each tab. |
+| `bolt_counterbore_depth` | `2.0` | |
+| `nut_diameter` | `9.0` | Hex nut pocket, across corners, on the -Y face of each tab. |
+| `nut_depth` | `3.5` | |
+| `mount_hole_spacing` | `50.0` | Mounting holes in the bottom cap at (±spacing, ±spacing). The build fails if the counterbores don't fit on the cap, e.g. on a small case with no mount disc. |
+| `mount_hole_diameter` | `6.8` | Mounting bolt clearance hole (M6). |
+| `mount_counterbore_diameter` | `10.5` | Counterbored from the inside face of the bottom cap. |
+| `mount_counterbore_depth` | `5.0` | |
+
+The `cap_*`, `bolt_*`, `nut_*`, and `mount_*` keys only apply to caps.
+
+## `[mount]`
+
+The mount that attaches the left half to the scanner.
+
+| Key | Default | Description |
+|---|---|---|
+| `type` | `"generic-112.5"` | `"generic-112.5"` or `"generic-65"`: the Generic Mount Disc of that diameter, matching `OpenSCAD/Generic Mount Disc*.scad`, with an orientation notch on its rim. `"kinematic"`: villa's 112.5 × 10 mm disc with three V-slots for a kinematic mount; the right half's side of its top is lowered 0.5 mm so the right half doesn't bind on it. `"none"`: no mount. |
+
 ## `[nubs]`
 
 Alignment nubs on the left half's split face, with matching sockets on the
-right half. Place them in the divider wall: farther from the axis than half
-the lining's outer diameter, and closer than half the shell's inner diameter.
-`scrollcase build` prints both diameters.
+right half. Place them on the divider, outside the cavity and inside the
+case: the build fails, naming the nub, if one isn't. `scrollcase build`
+prints the lining and shell diameters. On a curved split each nub sits at
+(x, f(x), z), still pointing along Y, with its base sunk into the divider so
+it stays attached where the surface slopes.
 
 | Key | Default | Description |
 |---|---|---|
@@ -91,9 +182,12 @@ left half, the floor holes go through the mount disc as well.
 
 ## `[label]`
 
-Engraved text on the bottom of the mount disc (left half) and the bottom of
-the shell (right half), mirrored so it reads correctly from below. It is also
-engraved on the stand's back plate, on the face toward the case.
+With shell ends, the label is engraved on the bottom of the mount disc (left
+half) and the bottom of the shell (right half), mirrored so it reads
+correctly from below. It is also engraved on the stand's back plate, on the
+face toward the case. With caps it goes on the top cap in upstream's layout:
+`line1` once on each half, `line2`, and a generated `<lining D> x <cavity H>`
+line.
 
 | Key | Default | Description |
 |---|---|---|
@@ -102,6 +196,27 @@ engraved on the stand's back plate, on the face toward the case.
 | `height` | `5.0` | Font size. |
 | `depth` | `0.5` | Engraving depth. |
 | `font` | `"Arial Rounded MT Bold"` | System font name. If the font isn't installed, Arial is used instead. OpenCASCADE's warning about this is hidden when the build succeeds. |
+
+## `[stand]`
+
+Cradle that holds the left half upright on its mount disc during assembly.
+
+| Key | Default | Description |
+|---|---|---|
+| `enabled` | `true` | Builds `<name>-Stand.stl`. `--parts` defaults to `left,right`, plus `stand` when this is on. |
+| `length_scale` | `1.0` | Stand length as a fraction of the case height. The top cradle moves with it. |
+
+## Valid combinations
+
+These are checked when the config loads, and the error names the keys
+involved.
+
+| Rule | Why |
+|---|---|
+| `ends.type = "shell"` requires a shell | The floor and lid are part of the shell. |
+| `shell.open_top` requires `ends.type = "shell"` | It cuts away the shell's lid. |
+| `escape_holes` require a shell | They sit in the gap between the lining and the shell. |
+| `stand.enabled` requires a `generic-*` mount and `ends.type = "shell"` | The cradle is shaped around the Generic Mount Disc, its notch, and the round shell. |
 
 ## How the dimensions stack up
 
@@ -115,7 +230,11 @@ case diameter     = shell inner diam. + 2 wall_thickness
 
 case height = floor + bottom_buffer
             + wall_thickness + (h + 2 lining_offset) + wall_thickness
-            + top_buffer + wall_thickness (lid)
+            + top_buffer + lid
 ```
+
+The floor is `max(2, wall_thickness)` and the lid is `wall_thickness`; with
+caps both are `cap_height`. Without a shell, the case diameter is the
+lining diameter.
 
 `scrollcase build` prints the scroll, lining, shell, and case sizes.
