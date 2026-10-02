@@ -1281,12 +1281,12 @@ dependencies = [
     { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "scipy", version = "1.18.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "trimesh" },
 ]
 
 [package.dev-dependencies]
 dev = [
     { name = "pytest" },
-    { name = "trimesh" },
 ]
 
 [package.metadata]
@@ -1295,13 +1295,11 @@ requires-dist = [
     { name = "meshlib", specifier = ">=3.1" },
     { name = "numpy" },
     { name = "scipy" },
+    { name = "trimesh" },
 ]
 
 [package.metadata.requires-dev]
-dev = [
-    { name = "pytest" },
-    { name = "trimesh" },
-]
+dev = [{ name = "pytest" }]
 
 [[package]]
 name = "stack-data"

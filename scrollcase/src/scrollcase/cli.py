@@ -1,6 +1,6 @@
 """Command line interface.
 
-scrollcase build [MESH] [-c case.toml] [-o OUT_DIR] [--parts left,right,stand]
+scrollcase build [MESH] [-c case.toml] [-o OUT_DIR] [--parts left,right,stand] [--preview]
 scrollcase defaults [--style STYLE] > case.toml
 """
 
@@ -8,6 +8,7 @@ import argparse
 import dataclasses
 import logging
 import sys
+from pathlib import Path
 
 from .config import PRESETS, CaseConfig, ConfigError, config_from_dict, load_config
 
@@ -69,6 +70,9 @@ def main(argv=None) -> int:
     build.add_argument(
         "--parts", help="comma-separated parts (default: left,right, plus stand if enabled)"
     )
+    build.add_argument(
+        "--preview", action="store_true", help="write <name>-preview.html and open it in a browser"
+    )
 
     defaults = sub.add_parser("defaults", help="print a style's full config as TOML")
     defaults.add_argument("--style", default=CaseConfig.style, choices=sorted(PRESETS))
@@ -120,6 +124,14 @@ def _build(args) -> int:
     print(f"Height: {L.outer_height:.2f} mm")
     for path in result.outputs.values():
         print(f"Wrote {path}")
+    if args.preview:
+        import webbrowser
+
+        from .preview import write_preview
+
+        page = write_preview(result.outputs, Path(args.out) / f"{cfg.name}-preview.html", cfg.name)
+        print(f"Wrote {page}")
+        webbrowser.open(page.resolve().as_uri())
     return 0
 
 

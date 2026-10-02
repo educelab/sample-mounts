@@ -11,13 +11,14 @@ dependencies = [
     "meshlib>=3.1",
     "numpy",
     "scipy",
+    "trimesh",
 ]
 
 [project.scripts]
 scrollcase = "scrollcase.cli:main"
 
 [dependency-groups]
-dev = ["pytest", "trimesh"]
+dev = ["pytest"]
 
 [build-system]
 requires = ["hatchling"]

@@ -8,9 +8,12 @@ for every config option.
 
 ```bash
 uv sync
-uv run scrollcase build -c examples/generic.toml -o out/
+uv run scrollcase build -c examples/generic.toml -o out/ --preview
 uv run pytest
 ```
+
+`--preview` also writes `<name>-preview.html`, a standalone 3D viewer with
+per-part visibility, opacity, and an explode slider (three.js loads from a CDN).
 
 Library use:
 
