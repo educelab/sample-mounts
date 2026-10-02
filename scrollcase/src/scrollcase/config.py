@@ -65,7 +65,10 @@ class HoneycombConfig:
 
 @dataclass
 class ShellConfig:
-    """Outer cylinder around the lining. `open_top` cuts away its upper part."""
+    """Outer cylinder around the lining. `open_top` cuts away its upper part.
+
+    `marker_rings` is ignored when there's no shell.
+    """
 
     type: str = "honeycomb"  # "honeycomb", "solid", or "none"
     open_top: bool = False
@@ -265,10 +268,6 @@ def validate(cfg: CaseConfig) -> None:
             raise ConfigError(message)
 
     require(
-        not cfg.shell.marker_rings or cfg.shell.type == "honeycomb",
-        f'shell.marker_rings requires shell.type = "honeycomb" (got {cfg.shell.type!r})',
-    )
-    require(
         not cfg.shell.open_top or cfg.ends.type == "shell",
         f'shell.open_top requires ends.type = "shell" (got {cfg.ends.type!r})',
     )
@@ -364,7 +363,9 @@ class Layout:
             outer_diameter = inner_diameter + 2 * wall
             # The split curve runs to the middle of the shell wall
             split_span = (inner_diameter + outer_diameter) / 4
-        cap_half_width = max(MOUNT_DIAMETERS[cfg.mount.type], outer_diameter) / 2 if caps else 0.0
+        # A shell tube flush with the cap sides would be tangent to them, so leave a margin
+        cap_fit = outer_diameter + 2 * wall if cfg.shell.type != "none" else outer_diameter
+        cap_half_width = max(MOUNT_DIAMETERS[cfg.mount.type], cap_fit) / 2 if caps else 0.0
         inner_height = cfg.bottom_buffer + cavity_height + 2 * wall + cfg.top_buffer
         cavity_z = bottom_wall + cfg.bottom_buffer + wall
         return cls(
@@ -403,6 +404,17 @@ def validate_layout(cfg: CaseConfig, L: Layout) -> None:
     from .split import profile_for
 
     profile_for(cfg, L)
+    if cfg.ends.type == "caps":
+        e = cfg.ends
+        reach = e.mount_hole_spacing + e.mount_counterbore_diameter / 2
+        if reach > L.cap_half_width:
+            raise ConfigError(
+                f"The bottom cap's mounting holes (ends.mount_hole_spacing = "
+                f"{e.mount_hole_spacing}) reach ±{reach:.2f} mm, past the edge of the "
+                f"{2 * L.cap_half_width:.2f} mm cap. Use a smaller ends.mount_hole_spacing "
+                f"(at most {L.cap_half_width - e.mount_counterbore_diameter / 2:.2f}), "
+                f"or a mount disc to widen the caps."
+            )
     divider = L.outer_diameter / 2 - L.cavity_diameter / 2
     for i, (x, z) in enumerate(cfg.nubs.positions):
         e = nub_extent(cfg, i)

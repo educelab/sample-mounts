@@ -192,3 +192,42 @@ def test_components_compose(tmp_path):
         mesh = mm.loadMesh(result.outputs[side])
         assert is_closed(mesh), side
         assert len(mm.getAllComponents(mesh)) == 1, side
+
+
+def test_solid_shell_without_mount(tmp_path):
+    """Marker rings on a solid shell, and the left label engraved on its own floor."""
+    data = {
+        "name": "s",
+        "shell": {"type": "solid"},
+        "mount": {"type": "none"},
+        "stand": {"enabled": False},
+    }
+    volumes = []
+    for line1 in ("", "TEST"):
+        cfg = config_from_dict({**data, "label": {"line1": line1}})
+        result = build(cfg, tmp_path / (line1 or "blank"), parts=("left",))
+        left = mm.loadMesh(result.outputs["left"])
+        # A solid shell seals the gap around the lining, so it's a second surface
+        assert is_closed(left)
+        volumes.append(left.volume())
+    L = result.layout
+    z = L.scroll_z + L.scroll_height / 2
+    assert inside(left, (0, -(L.outer_diameter / 2 + 0.25), z))
+    assert volumes[1] < volumes[0] - 1
+
+
+def test_caps_around_a_wider_shell(tmp_path):
+    cfg = config_from_dict(
+        {
+            "name": "c",
+            "scroll": {"generic_diameter": 110.0},
+            "ends": {"type": "caps"},
+            "mount": {"type": "none"},
+            "stand": {"enabled": False},
+        }
+    )
+    result = build(cfg, tmp_path)
+    for side in ("left", "right"):
+        mesh = mm.loadMesh(result.outputs[side])
+        assert is_closed(mesh), side
+        assert len(mm.getAllComponents(mesh)) == 1, side

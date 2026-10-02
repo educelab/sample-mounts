@@ -17,7 +17,7 @@ and angles in degrees.
 
 `style` picks a preset of defaults for every key below. Your own values
 override the preset key by key, so `[shell] type = "solid"` keeps the rest of
-the preset's `[shell]` settings.
+the preset's `[shell]` settings, including its marker rings.
 
 | Style | Description |
 |---|---|
@@ -109,7 +109,7 @@ The outer cylinder around the lining, including its floor and lid.
 |---|---|---|
 | `type` | `"honeycomb"` | `"honeycomb"` (hexagonal cutouts), `"solid"`, or `"none"`. With `"none"` the case is just the lining, divider, and ends, as upstream; the divider then ends in round posts at the cavity edge. |
 | `open_top` | `false` | Cuts away the upper shell on both sides, leaving an open cradle around the lining. |
-| `marker_rings` | `true` | Raised rings at the cavity bottom, scroll bottom, scroll middle, scroll top, and cavity top. |
+| `marker_rings` | `true` | Raised rings at the cavity bottom, scroll bottom, scroll middle, scroll top, and cavity top, on a honeycomb or solid shell. Ignored with `type = "none"`, since there is no shell to put them on, so switching a preset to no shell doesn't also require turning them off. |
 
 ### `[shell.honeycomb]`
 
@@ -128,7 +128,7 @@ What closes the top and bottom of the case.
 
 | Key | Default | Description |
 |---|---|---|
-| `type` | `"shell"` | `"shell"`: the shell's own floor and lid. `"caps"`: villa's square end caps, sized to the larger of the case and the mount disc. Bolts through tabs on both sides clamp the halves together; the bottom cap has counterbored mounting holes and an engraved arrow; the top cap carries the label. |
+| `type` | `"shell"` | `"shell"`: the shell's own floor and lid. `"caps"`: villa's square end caps, sized to the larger of the mount disc and the case (plus one `wall_thickness` on each side around a shell). Bolts through tabs on both sides clamp the halves together; the bottom cap has counterbored mounting holes and an engraved arrow; the top cap carries the label. |
 | `cap_height` | `10.0` | Cap thickness. Also the width of the bolt tabs. |
 | `corner_fillet` | `6.25` | Radius of the caps' corners. |
 | `bolt_hole_diameter` | `5.0` | Clamping bolt clearance hole (M4, loose). |
@@ -136,7 +136,7 @@ What closes the top and bottom of the case.
 | `bolt_counterbore_depth` | `2.0` | |
 | `nut_diameter` | `9.0` | Hex nut pocket, across corners, on the -Y face of each tab. |
 | `nut_depth` | `3.5` | |
-| `mount_hole_spacing` | `50.0` | Mounting holes in the bottom cap at (±spacing, ±spacing). |
+| `mount_hole_spacing` | `50.0` | Mounting holes in the bottom cap at (±spacing, ±spacing). The build fails if the counterbores don't fit on the cap, e.g. on a small case with no mount disc. |
 | `mount_hole_diameter` | `6.8` | Mounting bolt clearance hole (M6). |
 | `mount_counterbore_diameter` | `10.5` | Counterbored from the inside face of the bottom cap. |
 | `mount_counterbore_depth` | `5.0` | |
@@ -214,7 +214,6 @@ involved.
 | Rule | Why |
 |---|---|
 | `ends.type = "shell"` requires a shell | The floor and lid are part of the shell. |
-| `shell.marker_rings` requires `shell.type = "honeycomb"` | The rings fill bands of the honeycomb. |
 | `shell.open_top` requires `ends.type = "shell"` | It cuts away the shell's lid. |
 | `escape_holes` require a shell | They sit in the gap between the lining and the shell. |
 | `stand.enabled` requires a `generic-*` mount and `ends.type = "shell"` | The cradle is shaped around the Generic Mount Disc, its notch, and the round shell. |

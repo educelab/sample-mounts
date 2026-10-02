@@ -11,6 +11,7 @@ from scrollcase.config import (
     Layout,
     config_from_dict,
     load_config,
+    validate_layout,
 )
 
 PRESET_DIR = Path(__file__).parent / "presets"
@@ -36,8 +37,9 @@ def test_default_style_is_educelab_v1():
 
 
 def test_user_values_override_preset():
-    cfg = config_from_dict({"shell": {"type": "solid", "marker_rings": False}})
+    cfg = config_from_dict({"shell": {"type": "solid"}})
     assert cfg.shell.type == "solid"
+    assert cfg.shell.marker_rings
     # Untouched keys in the same section keep the preset's values
     assert cfg.shell.honeycomb.columns == 12
 
@@ -56,7 +58,6 @@ def test_unknown_keys_and_styles_are_rejected():
     [
         ({"shell": {"type": "lattice"}}, "shell.type"),
         ({"mount": {"type": "generic-100"}}, "mount.type"),
-        ({"shell": {"type": "solid"}}, "marker_rings"),
         ({"shell": {"type": "none", "marker_rings": False}}, "floor and lid"),
         ({"style": "villa.2026-10", "escape_holes": {"enabled": True}}, "escape_holes"),
         ({"style": "villa.2026-10", "stand": {"enabled": True}}, "generic mount"),
@@ -98,6 +99,29 @@ def test_villa_preset_layout_matches_upstream():
     assert L.outer_height == L.inner_height + 2 * 10
     assert L.split_span == L.cavity_diameter / 2
     assert L.cap_half_width == 112.5 / 2
+
+
+def test_marker_rings_are_ignored_without_a_shell():
+    cfg = config_from_dict({"style": "villa.2026-10", "shell": {"marker_rings": True}})
+    assert cfg.shell.type == "none"
+
+
+def test_caps_clear_the_shell():
+    """Caps around a shell wider than the mount leave a margin, avoiding tangent faces."""
+    cfg = config_from_dict(
+        {"ends": {"type": "caps"}, "mount": {"type": "none"}, "stand": {"enabled": False}}
+    )
+    L = Layout.from_config(cfg, scroll_radius=38, scroll_height=155)
+    assert L.cap_half_width == L.outer_diameter / 2 + cfg.wall_thickness
+
+
+def test_mount_holes_must_fit_on_caps():
+    cfg = config_from_dict({"style": "villa.2026-10", "mount": {"type": "none"}})
+    L = Layout.from_config(cfg, scroll_radius=20, scroll_height=100)
+    with pytest.raises(ConfigError, match="mount_hole_spacing"):
+        validate_layout(cfg, L)
+    cfg.ends.mount_hole_spacing = L.cap_half_width - cfg.ends.mount_counterbore_diameter / 2
+    validate_layout(cfg, L)
 
 
 @pytest.mark.parametrize(

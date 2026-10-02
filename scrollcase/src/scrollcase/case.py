@@ -161,9 +161,9 @@ def shell(cfg: CaseConfig, L: Layout) -> Part | None:
 
     if cfg.shell.type == "honeycomb":
         body -= _honeycomb_cutter(cfg, L)
-        if cfg.shell.marker_rings:
-            for z in marker_ring_heights(L):
-                body += translate([0, 0, z], Torus(L.outer_diameter / 2, 0.5))
+    if cfg.shell.marker_rings:
+        for z in marker_ring_heights(L):
+            body += translate([0, 0, z], Torus(L.outer_diameter / 2, 0.5))
 
     if cfg.shell.open_top:
         # Scoop away the upper shell, leaving an open cradle around the lining
@@ -308,7 +308,8 @@ def left_body(cfg: CaseConfig, L: Layout) -> Part:
         y = (
             MOUNT_DISCS[cfg.mount.type].diameter / 4
             if cfg.mount.type != "none"
-            else L.outer_diameter / 4
+            # Without a disc the left half only spans -Y
+            else -L.outer_diameter / 4
         )
         body -= translate([0, y, -_mount_thickness(cfg) - _LABEL_EXTRA], tool)
     return body
