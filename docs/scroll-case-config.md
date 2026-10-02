@@ -40,7 +40,7 @@ enabled = false
 ```
 
 `villa.2026-10` reproduces upstream's case bodies exactly; see the
-[comparison](villa-2026-10-comparison.md). The known differences are all in
+[comparison](https://github.com/educelab/sample-mounts/blob/main/docs/villa-2026-10-comparison.md). The known differences are all in
 the mesh stage: the scroll fit uses a tighter tolerance, the wide-axis
 rotation normalizes its vector before taking the angle, `voxel_size` is
 absolute (upstream uses 0.4% of the mesh diagonal), and `"denoise"`

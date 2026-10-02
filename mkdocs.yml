@@ -28,9 +28,11 @@ markdown_extensions:
   - toc:
       permalink: true
 
+exclude_docs: |
+  villa-2026-10-comparison.md
+
 nav:
   - Home: index.md
   - Scroll cases:
       - Creating a scroll case: creating-scroll-case.md
       - Config reference: scroll-case-config.md
-      - villa.2026-10 vs upstream: villa-2026-10-comparison.md
