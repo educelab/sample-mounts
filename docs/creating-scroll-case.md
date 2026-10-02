@@ -36,12 +36,15 @@ honeycomb case: left half (with mount disc), right half, and assembly stand.
 3. **Generate a draft.**
 
    ```bash
-   uv run scrollcase -v build -c my-scroll.toml -o out/
+   uv run scrollcase -v build -c my-scroll.toml -o out/ --preview
    ```
 
    This writes `<name>-L.stl`, `-R.stl`, `-Stand.stl`, and `-Scroll.stl`. The
    scroll STL is the aligned scroll in case coordinates; load it with the
-   halves in a viewer to check placement and clearances.
+   halves in a viewer to check placement and clearances. `--preview` also
+   writes and opens `<name>-preview.html`, which shows every part together.
+   Make the halves see-through or explode them apart to check the fit, and
+   use **Save snapshot** to save a PNG of the view.
 
 4. **Adjust.**
    - The scroll is auto-aligned to the case axis, with its widest direction

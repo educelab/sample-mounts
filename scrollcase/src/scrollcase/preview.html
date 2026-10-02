@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<style>
+  :root {
+    --bg: #eef0f3; --panel: rgba(255, 255, 255, 0.92); --text: #1d2228;
+    --muted: #66707c; --line: #d5d9df; --grid: #c4c9d0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1b1e23; --panel: rgba(36, 40, 47, 0.92); --text: #e6e9ed;
+      --muted: #9aa3ad; --line: #3a404a; --grid: #353b44;
+    }
+  }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
+    font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  canvas { display: block; }
+  #panel { position: absolute; top: 12px; left: 12px; width: 240px; padding: 12px 14px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    backdrop-filter: blur(6px); }
+  h1 { font-size: 14px; margin: 0 0 10px; font-weight: 600; }
+  .part { display: grid; grid-template-columns: auto 18px 1fr; align-items: center;
+    gap: 2px 8px; padding: 6px 0; border-top: 1px solid var(--line); }
+  .part input[type=range] { grid-column: 2 / 4; width: 100%; }
+  .swatch { width: 18px; height: 18px; padding: 0; border: 1px solid var(--line);
+    border-radius: 4px; background: none; cursor: pointer; }
+  .swatch::-webkit-color-swatch-wrapper { padding: 0; }
+  .swatch::-webkit-color-swatch { border: none; border-radius: 3px; }
+  .swatch::-moz-color-swatch { border: none; border-radius: 3px; }
+  label { cursor: pointer; }
+  .row { display: flex; align-items: center; gap: 8px; padding-top: 8px;
+    border-top: 1px solid var(--line); }
+  .row input[type=range] { flex: 1; }
+  .muted { color: var(--muted); font-size: 12px; }
+  button { margin-top: 10px; width: 100%; padding: 5px; font: inherit; color: var(--text);
+    background: transparent; border: 1px solid var(--line); border-radius: 5px; cursor: pointer; }
+  button:hover { border-color: var(--muted); }
+  .seg { display: flex; gap: 4px; }
+  .seg button { margin-top: 0; }
+  .seg button[aria-pressed=true] { border-color: var(--text); font-weight: 600; }
+  #status { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="status">Loading…</div>
+<div id="panel" hidden>
+  <h1 id="title"></h1>
+  <div id="parts"></div>
+  <div class="row">
+    <span>Explode</span>
+    <input id="explode" type="range" min="0" max="1" step="0.01" value="0">
+  </div>
+  <div class="row seg" id="pose">
+    <button data-pose="upright" aria-pressed="true">Upright</button>
+    <button data-pose="lying" aria-pressed="false">On stand</button>
+  </div>
+  <div class="row">
+    <input type="checkbox" id="show-grid" checked><label for="show-grid">Ground grid</label>
+  </div>
+  <div class="row">
+    <input type="color" class="swatch" id="background"><label for="background">Background</label>
+  </div>
+  <button id="reset">Reset view</button>
+  <button id="snapshot">Save snapshot</button>
+  <p class="muted">Drag to orbit, right-drag to pan, scroll to zoom. Swatches set color, sliders set opacity.</p>
+</div>
+<script id="data" type="application/json">__DATA__</script>
+<script>
+  // Surface load failures (CDN offline, oversized or corrupt model) instead of "Loading…" forever
+  function showError(e) {
+    const status = document.getElementById("status");
+    if (status) status.textContent = `Could not load preview: ${e?.message ?? e}`;
+  }
+  addEventListener("error", e => showError(e.error ?? e.message));
+  addEventListener("unhandledrejection", e => showError(e.reason));
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+const data = JSON.parse(document.getElementById("data").textContent);
+const css = getComputedStyle(document.documentElement);
+document.getElementById("title").textContent = data.title;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(innerWidth, innerHeight);
+document.body.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(css.getPropertyValue("--bg").trim());
+const camera = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 1, 1e5);
+scene.add(camera);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x666670, 1.6));
+const key = new THREE.DirectionalLight(0xffffff, 1.8);
+key.position.set(1, 2, 1);
+camera.add(key);  // light follows the view so no side goes dark
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+// Decoding through fetch is far faster than atob plus a per-character copy
+const glb = await (await fetch(`data:model/gltf-binary;base64,${data.glb}`)).arrayBuffer();
+const gltf = await new GLTFLoader().parseAsync(glb, "");
+const modelSize = new THREE.Box3().setFromObject(gltf.scene).getSize(new THREE.Vector3());
+// The world stays Y-up for the orbit controls; poses rotate the model instead
+const model = new THREE.Group();
+model.add(gltf.scene);
+scene.add(model);
+// Each pose's default view looks at the right half, away from the stand
+const poses = {
+  upright: { rotation: new THREE.Euler(-Math.PI / 2, 0, 0), view: new THREE.Vector3(0.8, 0.5, -1) },
+  lying: { rotation: new THREE.Euler(0, 0, 0), view: new THREE.Vector3(1, 0.8, 0.9) },
+};
+let pose = "upright";
+
+const gridColor = css.getPropertyValue("--grid").trim();
+const grid = new THREE.GridHelper(10, 1, gridColor, gridColor);
+scene.add(grid);
+
+// Each mesh draws twice: a depth-only pass, then color. When transparent, only
+// the front surface blends; otherwise the stacked honeycomb walls make opacity
+// look all-or-nothing. Material groups draw in order, so depth always goes first.
+const parts = data.parts.map(p => {
+  const obj = gltf.scene.getObjectByName(p.key);
+  const material = new THREE.MeshStandardMaterial({
+    color: p.color, roughness: 0.65, metalness: 0.05, flatShading: true,
+  });
+  const depth = new THREE.MeshBasicMaterial({ colorWrite: false, transparent: true, visible: false });
+  obj.traverse(o => {
+    if (!o.isMesh) return;
+    const g = o.geometry;
+    const count = g.index ? g.index.count : g.attributes.position.count;
+    g.clearGroups();
+    g.addGroup(0, count, 0);
+    g.addGroup(0, count, 1);
+    o.material = [depth, material];
+  });
+  return { ...p, obj, material, depth, home: obj.position.clone(), dir: new THREE.Vector3(...p.explode) };
+});
+
+function setOpacity(p, a) {
+  const transparent = a < 1;
+  if (transparent !== p.material.transparent) {
+    p.material.transparent = transparent;
+    p.material.depthWrite = !transparent;
+    p.material.needsUpdate = true;
+    p.depth.visible = transparent;
+  }
+  p.material.opacity = a;
+}
+
+const list = document.getElementById("parts");
+for (const p of parts) {
+  const row = document.createElement("div");
+  row.className = "part";
+  row.innerHTML = `<input type="checkbox" id="show-${p.key}" checked>
+    <input type="color" class="swatch" value="${p.color}" aria-label="${p.label} color">
+    <label for="show-${p.key}">${p.label}</label>
+    <input type="range" min="0.05" max="1" step="0.01" value="1" aria-label="${p.label} opacity">`;
+  const [check, color, , slider] = row.children;
+  color.addEventListener("input", () => p.material.color.set(color.value));
+  check.addEventListener("change", () => { p.obj.visible = check.checked; placeGrid(); });
+  slider.addEventListener("input", () => setOpacity(p, Number(slider.value)));
+  list.append(row);
+}
+if (!parts.some(p => p.key === "stand")) document.querySelector('[data-pose=lying]').textContent = "On side";
+
+function placeGrid() {
+  const box = new THREE.Box3();
+  for (const p of parts) if (p.obj.visible) box.expandByObject(p.obj);
+  if (box.isEmpty()) return;
+  const size = box.getSize(new THREE.Vector3());
+  const extent = Math.ceil(Math.max(size.x, size.z) * 1.5 / 10) * 10;
+  grid.geometry.dispose();
+  grid.geometry = new THREE.GridHelper(extent, extent / 10, gridColor, gridColor).geometry;
+  const c = box.getCenter(new THREE.Vector3());
+  grid.position.set(c.x, box.min.y - 0.5, c.z);
+}
+
+document.getElementById("explode").addEventListener("input", e => {
+  const d = Number(e.target.value) * Math.max(modelSize.x, modelSize.y) * 0.6;
+  for (const p of parts) p.obj.position.copy(p.home).addScaledVector(p.dir, d);
+  placeGrid();
+});
+
+function resetView() {
+  const box = new THREE.Box3().setFromObject(model);
+  const center = box.getCenter(new THREE.Vector3());
+  const span = box.getSize(new THREE.Vector3()).length();
+  controls.target.copy(center);
+  camera.position.copy(center).addScaledVector(poses[pose].view.clone().normalize(), span * 1.6);
+  controls.update();
+}
+
+function setPose(name) {
+  pose = name;
+  model.rotation.copy(poses[name].rotation);
+  model.updateMatrixWorld(true);
+  for (const b of document.querySelectorAll("#pose button")) b.setAttribute("aria-pressed", b.dataset.pose === name);
+  placeGrid();
+  resetView();
+}
+for (const b of document.querySelectorAll("#pose button")) b.addEventListener("click", () => setPose(b.dataset.pose));
+const background = document.getElementById("background");
+background.value = "#" + scene.background.getHexString();
+background.addEventListener("input", () => scene.background.set(background.value));
+document.getElementById("show-grid").addEventListener("change", e => { grid.visible = e.target.checked; });
+document.getElementById("reset").addEventListener("click", resetView);
+
+// The drawing buffer is cleared after each frame, so render right before reading it
+document.getElementById("snapshot").addEventListener("click", () => {
+  renderer.render(scene, camera);
+  renderer.domElement.toBlob(blob => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${data.title}-snapshot.png`;
+    a.click();
+    // Some browsers start the download asynchronously, so revoke later
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+});
+setPose("upright");
+
+addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+document.getElementById("status").remove();
+document.getElementById("panel").hidden = false;
+renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+</script>
+</body>
+</html>
