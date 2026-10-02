@@ -36,10 +36,10 @@ def write_preview(outputs: dict[str, Path], path: str | Path, title: str = "Scro
         "parts": parts,
         "glb": base64.b64encode(scene.export(file_type="glb")).decode("ascii"),
     }
-    template = files("scrollcase").joinpath("preview.html").read_text()
+    template = files("scrollcase").joinpath("preview.html").read_text(encoding="utf-8")
     # "</" would end the inline <script> early
     payload = json.dumps(data).replace("</", "<\\/")
     page = template.replace("__TITLE__", html.escape(title)).replace("__DATA__", payload)
     path = Path(path)
-    path.write_text(page)
+    path.write_text(page, encoding="utf-8")
     return path

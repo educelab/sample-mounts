@@ -74,6 +74,15 @@
   <p class="muted">Drag to orbit, right-drag to pan, scroll to zoom. Swatches set color, sliders set opacity.</p>
 </div>
 <script id="data" type="application/json">__DATA__</script>
+<script>
+  // Surface load failures (CDN offline, oversized or corrupt model) instead of "Loading…" forever
+  function showError(e) {
+    const status = document.getElementById("status");
+    if (status) status.textContent = `Could not load preview: ${e?.message ?? e}`;
+  }
+  addEventListener("error", e => showError(e.error ?? e.message));
+  addEventListener("unhandledrejection", e => showError(e.reason));
+</script>
 <script type="module">
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
@@ -100,8 +109,9 @@ camera.add(key);  // light follows the view so no side goes dark
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 
-const bytes = Uint8Array.from(atob(data.glb), c => c.charCodeAt(0));
-const gltf = await new GLTFLoader().parseAsync(bytes.buffer, "");
+// Decoding through fetch is far faster than atob plus a per-character copy
+const glb = await (await fetch(`data:model/gltf-binary;base64,${data.glb}`)).arrayBuffer();
+const gltf = await new GLTFLoader().parseAsync(glb, "");
 const modelSize = new THREE.Box3().setFromObject(gltf.scene).getSize(new THREE.Vector3());
 // The world stays Y-up for the orbit controls; poses rotate the model instead
 const model = new THREE.Group();
@@ -216,7 +226,8 @@ document.getElementById("snapshot").addEventListener("click", () => {
     a.href = URL.createObjectURL(blob);
     a.download = `${data.title}-snapshot.png`;
     a.click();
-    URL.revokeObjectURL(a.href);
+    // Some browsers start the download asynchronously, so revoke later
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   });
 });
 setPose("upright");
